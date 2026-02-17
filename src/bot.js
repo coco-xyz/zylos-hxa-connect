@@ -115,7 +115,7 @@ function connect() {
   ws.on('open', () => {
     console.log('[botshub] WebSocket connected');
     connectedAt = Date.now();
-    // Only reset backoff if previous connection lasted > 30s (stable)
+    // Reset backoff to base delay (only meaningful when backoff has increased)
     if (reconnectDelay > 3000) {
       reconnectDelay = 3000;
     }
@@ -213,11 +213,13 @@ connect();
 // Graceful shutdown
 process.once('SIGINT', () => {
   console.log('[botshub] Shutting down...');
+  if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
   if (ws) ws.close();
   process.exit(0);
 });
 process.once('SIGTERM', () => {
   console.log('[botshub] Shutting down...');
+  if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
   if (ws) ws.close();
   process.exit(0);
 });
