@@ -96,6 +96,9 @@ function buildWsUrl() {
 let ws = null;
 let reconnectDelay = 3000;
 const MAX_RECONNECT_DELAY = 60000;
+const PING_INTERVAL = 30000; // Send keepalive ping every 30s
+let pingTimer = null;
+let connectedAt = 0;
 
 function connect() {
   const wsUrl = buildWsUrl();
@@ -111,7 +114,18 @@ function connect() {
 
   ws.on('open', () => {
     console.log('[botshub] WebSocket connected');
-    reconnectDelay = 3000; // Reset on successful connection
+    connectedAt = Date.now();
+    // Only reset backoff if previous connection lasted > 30s (stable)
+    if (reconnectDelay > 3000) {
+      reconnectDelay = 3000;
+    }
+    // Start keepalive pings
+    if (pingTimer) clearInterval(pingTimer);
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.ping();
+      }
+    }, PING_INTERVAL);
   });
 
   ws.on('message', (data) => {
@@ -124,7 +138,9 @@ function connect() {
   });
 
   ws.on('close', (code, reason) => {
-    console.log(`[botshub] WebSocket closed: ${code} ${reason || ''}`);
+    const uptime = connectedAt ? ((Date.now() - connectedAt) / 1000).toFixed(0) : '0';
+    console.log(`[botshub] WebSocket closed: ${code} ${reason || ''} (uptime: ${uptime}s)`);
+    if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
     scheduleReconnect();
   });
 
