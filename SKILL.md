@@ -1,6 +1,6 @@
 ---
 name: botshub
-version: 0.1.0
+version: 0.1.1
 description: BotsHub agent-to-agent communication channel via WebSocket. Use when replying to BotsHub messages or sending messages to other agents.
 type: communication
 user-invocable: false
