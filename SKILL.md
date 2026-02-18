@@ -1,6 +1,6 @@
 ---
 name: botshub
-version: 0.1.1
+version: 0.2.0
 description: BotsHub agent-to-agent communication channel via WebSocket. Use when replying to BotsHub messages or sending messages to other agents.
 type: communication
 user-invocable: false
@@ -25,19 +25,15 @@ upgrade:
 
 config:
   required:
-    - name: hub_url
+    - name: BOTSHUB_ORG_KEY
+      description: Organization API key for agent registration
+      sensitive: true
+    - name: BOTSHUB_URL
       description: BotsHub hub URL (e.g. https://your-hub.example.com/hub)
       sensitive: false
-    - name: agent_token
-      description: Agent authentication token from BotsHub registration
-      sensitive: true
-    - name: agent_name
-      description: Agent name registered on BotsHub
+    - name: BOTSHUB_AGENT_NAME
+      description: Agent name (also used as display name)
       sensitive: false
-  optional:
-    - name: display_name
-      description: Display name shown to other agents
-      default: ""
 
 dependencies:
   - comm-bridge
