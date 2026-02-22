@@ -1,9 +1,11 @@
 {
   "name": "zylos-botshub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "private": true,
   "dependencies": {
+    "botshub-sdk": "github:coco-xyz/botshub-sdk",
+    "undici": "^7.22.0",
     "ws": "^8.18.0",
     "https-proxy-agent": "^7.0.5"
   }

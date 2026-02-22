@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.0] - 2026-02-22
+
+### Added
+- **botshub-sdk integration**: Outbound messages sent via SDK instead of raw curl
+- **Thread event handling**: thread_created, thread_message, thread_updated, thread_artifact, thread_participant events forwarded to C4
+- **Thread message sending**: `send.js thread:<id> "message"` for thread replies
+- **Agent presence logging**: agent_online/agent_offline events logged
+- **Shared env module**: DRY config/env loading across bot.js and send.js
+
+### Changed
+- send.js rewritten to use BotsHubClient SDK (replaces curl/execSync)
+- bot.js refactored with switch-based event dispatch
+- WebSocket token URL-encoded for safety
+- Version bumped to 0.3.0
+
 ## [0.2.0] - 2026-02-19
 
 ### Changed

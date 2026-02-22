@@ -1,43 +1,19 @@
 /**
  * zylos-botshub - BotsHub WebSocket client for Zylos Agent
  * Connects to a BotsHub hub via WebSocket and bridges messages to C4.
+ *
+ * Handles: DM, channel messages, threads, artifacts, participant events.
+ * Uses raw ws for WebSocket (proxy + reconnect support).
  */
 
 import WebSocket from 'ws';
 import { exec } from 'child_process';
-import fs from 'fs';
 import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import { loadConfig, PROXY_URL } from './env.js';
 
 const HOME = process.env.HOME;
-const CONFIG_PATH = path.join(HOME, 'zylos/components/botshub/config.json');
 const C4_RECEIVE = path.join(HOME, 'zylos/.claude/skills/comm-bridge/scripts/c4-receive.js');
-
-// Load .env
-const envPath = path.join(HOME, 'zylos/.env');
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf8');
-  for (const line of envContent.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eqIdx = trimmed.indexOf('=');
-    if (eqIdx === -1) continue;
-    const key = trimmed.slice(0, eqIdx);
-    const val = trimmed.slice(eqIdx + 1);
-    if (!process.env[key]) process.env[key] = val;
-  }
-}
-
-const PROXY_URL = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
-
-function loadConfig() {
-  try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-  } catch (err) {
-    console.error('[botshub] Failed to load config:', err.message);
-    process.exit(1);
-  }
-}
 
 const config = loadConfig();
 const HUB_URL = config.hub_url;
@@ -59,7 +35,7 @@ function sendToC4(source, endpoint, content) {
 
   exec(cmd, { encoding: 'utf8' }, (error, stdout) => {
     if (!error) {
-      console.log(`[botshub] Sent to C4: ${content.substring(0, 80)}...`);
+      console.log(`[botshub] → C4: ${content.substring(0, 80)}...`);
       return;
     }
     // Parse structured rejection
@@ -75,7 +51,7 @@ function sendToC4(source, endpoint, content) {
     setTimeout(() => {
       exec(cmd, { encoding: 'utf8' }, (retryErr) => {
         if (retryErr) console.error(`[botshub] C4 retry failed: ${retryErr.message}`);
-        else console.log(`[botshub] Sent to C4 (retry): ${content.substring(0, 80)}...`);
+        else console.log(`[botshub] → C4 (retry): ${content.substring(0, 80)}...`);
       });
     }, 2000);
   });
@@ -87,16 +63,15 @@ function sendToC4(source, endpoint, content) {
 function buildWsUrl() {
   const url = new URL(HUB_URL);
   const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${url.host}${url.pathname.replace(/\/$/, '')}/ws?token=${TOKEN}`;
+  return `${protocol}//${url.host}${url.pathname.replace(/\/$/, '')}/ws?token=${encodeURIComponent(TOKEN)}`;
 }
 
-/**
- * Connect to BotsHub via WebSocket with auto-reconnect
- */
+// ─── WebSocket Connection ─────────────────────────────────
+
 let ws = null;
 let reconnectDelay = 3000;
 const MAX_RECONNECT_DELAY = 60000;
-const PING_INTERVAL = 30000; // Send keepalive ping every 30s
+const PING_INTERVAL = 30000;
 let pingTimer = null;
 let connectedAt = 0;
 
@@ -115,23 +90,17 @@ function connect() {
   ws.on('open', () => {
     console.log('[botshub] WebSocket connected');
     connectedAt = Date.now();
-    // Reset backoff to base delay (only meaningful when backoff has increased)
-    if (reconnectDelay > 3000) {
-      reconnectDelay = 3000;
-    }
-    // Start keepalive pings
+    if (reconnectDelay > 3000) reconnectDelay = 3000;
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.ping();
-      }
+      if (ws && ws.readyState === WebSocket.OPEN) ws.ping();
     }, PING_INTERVAL);
   });
 
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data.toString());
-      handleMessage(msg);
+      handleEvent(msg);
     } catch (err) {
       console.error('[botshub] Failed to parse message:', err.message);
     }
@@ -146,7 +115,6 @@ function connect() {
 
   ws.on('error', (err) => {
     console.error(`[botshub] WebSocket error: ${err.message}`);
-    // close event will fire after this, triggering reconnect
   });
 }
 
@@ -158,68 +126,135 @@ function scheduleReconnect() {
   }, reconnectDelay);
 }
 
-/**
- * Handle incoming BotsHub message
- */
-function handleMessage(msg) {
+// ─── Event Handlers ───────────────────────────────────────
+
+function handleEvent(msg) {
   const type = msg.type;
 
-  if (type === 'message') {
-    // DM or channel message from another agent
-    // Actual format: { type: "message", channel_id, message: { content, ... }, sender_name }
-    const sender = msg.sender_name || 'unknown';
-    const content = msg.message?.content || msg.content || '';
-
-    // Ignore own messages
-    if (sender === AGENT_NAME) return;
-
-    console.log(`[botshub] Message from ${sender}: ${content.substring(0, 80)}`);
-
-    const formatted = `[BotsHub DM] ${sender} said: ${content}`;
-    sendToC4('botshub', sender, formatted);
-
-  } else if (type === 'channel_message') {
-    // Group channel message (alternative format)
-    const sender = msg.sender_name || 'unknown';
-    const channel = msg.channel_id || 'unknown';
-    const channelName = msg.channel_name || channel;
-    const content = msg.message?.content || msg.content || '';
-
-    // Ignore own messages
-    if (sender === AGENT_NAME) return;
-
-    console.log(`[botshub] Channel ${channelName} from ${sender}: ${content.substring(0, 80)}`);
-
-    const formatted = `[BotsHub GROUP:${channelName}] ${sender} said: ${content}`;
-    sendToC4('botshub', `channel:${channel}`, formatted);
-
-  } else if (type === 'ping') {
-    // Respond to keepalive
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: 'pong' }));
-    }
-
-  } else {
-    console.log(`[botshub] Unknown message type: ${type}`, JSON.stringify(msg).substring(0, 200));
+  switch (type) {
+    case 'message':
+      handleDM(msg);
+      break;
+    case 'channel_message':
+      handleChannelMessage(msg);
+      break;
+    case 'thread_created':
+      handleThreadCreated(msg);
+      break;
+    case 'thread_message':
+      handleThreadMessage(msg);
+      break;
+    case 'thread_updated':
+      handleThreadUpdated(msg);
+      break;
+    case 'thread_artifact':
+      handleThreadArtifact(msg);
+      break;
+    case 'thread_participant':
+      handleThreadParticipant(msg);
+      break;
+    case 'ping':
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'pong' }));
+      }
+      break;
+    case 'agent_online':
+    case 'agent_offline':
+      console.log(`[botshub] ${msg.agent_name || msg.agent_id} is ${type === 'agent_online' ? 'online' : 'offline'}`);
+      break;
+    default:
+      console.log(`[botshub] Event: ${type}`, JSON.stringify(msg).substring(0, 200));
   }
 }
 
-// Start
+function handleDM(msg) {
+  const sender = msg.sender_name || 'unknown';
+  const content = msg.message?.content || msg.content || '';
+  if (sender === AGENT_NAME) return;
+
+  console.log(`[botshub] DM from ${sender}: ${content.substring(0, 80)}`);
+  const formatted = `[BotsHub DM] ${sender} said: ${content}`;
+  sendToC4('botshub', sender, formatted);
+}
+
+function handleChannelMessage(msg) {
+  const sender = msg.sender_name || 'unknown';
+  const channel = msg.channel_id || 'unknown';
+  const channelName = msg.channel_name || channel;
+  const content = msg.message?.content || msg.content || '';
+  if (sender === AGENT_NAME) return;
+
+  console.log(`[botshub] Channel ${channelName} from ${sender}: ${content.substring(0, 80)}`);
+  const formatted = `[BotsHub GROUP:${channelName}] ${sender} said: ${content}`;
+  sendToC4('botshub', `channel:${channel}`, formatted);
+}
+
+function handleThreadCreated(msg) {
+  const thread = msg.thread || {};
+  const topic = thread.topic || 'untitled';
+  const threadType = thread.type || 'general';
+  console.log(`[botshub] Thread created: "${topic}" (${threadType})`);
+
+  const formatted = `[BotsHub Thread] New thread created: "${topic}" (type: ${threadType}, id: ${thread.id})`;
+  sendToC4('botshub', `thread:${thread.id}`, formatted);
+}
+
+function handleThreadMessage(msg) {
+  const threadId = msg.thread_id;
+  const message = msg.message || {};
+  const sender = message.sender_name || message.sender_id || 'unknown';
+  const content = message.content || '';
+  if (sender === AGENT_NAME) return;
+
+  console.log(`[botshub] Thread ${threadId} from ${sender}: ${content.substring(0, 80)}`);
+
+  const formatted = `[BotsHub Thread:${threadId}] ${sender} said: ${content}`;
+  sendToC4('botshub', `thread:${threadId}`, formatted);
+}
+
+function handleThreadUpdated(msg) {
+  const thread = msg.thread || {};
+  const changes = msg.changes || [];
+  const topic = thread.topic || 'untitled';
+  console.log(`[botshub] Thread updated: "${topic}" changes: ${changes.join(', ')}`);
+
+  const formatted = `[BotsHub Thread:${thread.id}] Thread "${topic}" updated: ${changes.join(', ')} (status: ${thread.status})`;
+  sendToC4('botshub', `thread:${thread.id}`, formatted);
+}
+
+function handleThreadArtifact(msg) {
+  const threadId = msg.thread_id;
+  const artifact = msg.artifact || {};
+  const action = msg.action || 'added';
+  console.log(`[botshub] Thread ${threadId} artifact ${action}: ${artifact.artifact_key}`);
+
+  const formatted = `[BotsHub Thread:${threadId}] Artifact ${action}: "${artifact.title || artifact.artifact_key}" (type: ${artifact.type})`;
+  sendToC4('botshub', `thread:${threadId}`, formatted);
+}
+
+function handleThreadParticipant(msg) {
+  const threadId = msg.thread_id;
+  const botId = msg.bot_id;
+  const action = msg.action; // 'joined' or 'left'
+  console.log(`[botshub] Thread ${threadId}: ${botId} ${action}`);
+
+  const formatted = `[BotsHub Thread:${threadId}] ${botId} ${action} the thread`;
+  sendToC4('botshub', `thread:${threadId}`, formatted);
+}
+
+// ─── Start ────────────────────────────────────────────────
+
 console.log(`[botshub] zylos-botshub starting as "${AGENT_NAME}"`);
 console.log(`[botshub] Hub: ${HUB_URL}`);
 console.log(`[botshub] Proxy: ${PROXY_URL || 'none'}`);
 connect();
 
 // Graceful shutdown
-process.once('SIGINT', () => {
+function shutdown() {
   console.log('[botshub] Shutting down...');
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
   if (ws) ws.close();
   process.exit(0);
-});
-process.once('SIGTERM', () => {
-  console.log('[botshub] Shutting down...');
-  if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
-  if (ws) ws.close();
-  process.exit(0);
-});
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
