@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1] - 2026-02-22
+
+### Fixed
+- **Self-message echo guard**: Added truthiness check for `isSelf()` to handle missing AGENT_ID gracefully (#6)
+- **Agent event field path**: Fixed `agent_online`/`agent_offline` event payload field extraction (#6)
+- **Startup warning**: Log warning when AGENT_ID is not configured (#6)
+
 ## [0.3.0] - 2026-02-22
 
 ### Added
