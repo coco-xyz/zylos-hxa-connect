@@ -19,6 +19,7 @@ const config = loadConfig();
 const HUB_URL = config.hub_url;
 const TOKEN = config.agent_token;
 const AGENT_NAME = config.agent_name;
+const AGENT_ID = config.agent_id;
 
 if (!HUB_URL || !TOKEN) {
   console.error('[botshub] hub_url and agent_token required in config.json');
@@ -160,17 +161,21 @@ function handleEvent(msg) {
       break;
     case 'agent_online':
     case 'agent_offline':
-      console.log(`[botshub] ${msg.agent_name || msg.agent_id} is ${type === 'agent_online' ? 'online' : 'offline'}`);
+      console.log(`[botshub] ${msg.agent?.name || msg.agent?.id || 'unknown'} is ${type === 'agent_online' ? 'online' : 'offline'}`);
       break;
     default:
       console.log(`[botshub] Event: ${type}`, JSON.stringify(msg).substring(0, 200));
   }
 }
 
+function isSelf(name, id) {
+  return name === AGENT_NAME || id === AGENT_ID;
+}
+
 function handleDM(msg) {
   const sender = msg.sender_name || 'unknown';
   const content = msg.message?.content || msg.content || '';
-  if (sender === AGENT_NAME) return;
+  if (isSelf(sender, msg.sender_id)) return;
 
   console.log(`[botshub] DM from ${sender}: ${content.substring(0, 80)}`);
   const formatted = `[BotsHub DM] ${sender} said: ${content}`;
@@ -182,7 +187,7 @@ function handleChannelMessage(msg) {
   const channel = msg.channel_id || 'unknown';
   const channelName = msg.channel_name || channel;
   const content = msg.message?.content || msg.content || '';
-  if (sender === AGENT_NAME) return;
+  if (isSelf(sender, msg.sender_id)) return;
 
   console.log(`[botshub] Channel ${channelName} from ${sender}: ${content.substring(0, 80)}`);
   const formatted = `[BotsHub GROUP:${channelName}] ${sender} said: ${content}`;
@@ -204,7 +209,7 @@ function handleThreadMessage(msg) {
   const message = msg.message || {};
   const sender = message.sender_name || message.sender_id || 'unknown';
   const content = message.content || '';
-  if (sender === AGENT_NAME) return;
+  if (isSelf(message.sender_name, message.sender_id)) return;
 
   console.log(`[botshub] Thread ${threadId} from ${sender}: ${content.substring(0, 80)}`);
 
