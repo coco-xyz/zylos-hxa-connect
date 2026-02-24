@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0] - 2026-02-24
+
+### Changed
+- **SDK upgrade to Phase 4 GA**: Updated botshub-sdk with auto-reconnect, ThreadContext, and protocol updates
+- **Thread tags**: Thread `type` replaced with `tags` array — thread_created handler updated accordingly
+- **Participant events enriched**: thread_participant events now include `bot_name`, `by` (inviter), and `label` fields
+
+### Added
+- **channel_deleted event handler**: Logs channel deletion events from the hub
+- **New SDK features available**: ReconnectOptions, ThreadContext class, toPromptContext() for LLM-ready output, OrgSettings/AuditEntry/WebhookHealth types
+
 ## [0.3.1] - 2026-02-22
 
 ### Fixed

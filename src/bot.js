@@ -157,6 +157,9 @@ function handleEvent(msg) {
     case 'thread_participant':
       handleThreadParticipant(msg);
       break;
+    case 'channel_deleted':
+      console.log(`[botshub] Channel deleted: ${msg.channel_id}`);
+      break;
     case 'ping':
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'pong' }));
@@ -200,10 +203,10 @@ function handleChannelMessage(msg) {
 function handleThreadCreated(msg) {
   const thread = msg.thread || {};
   const topic = thread.topic || 'untitled';
-  const threadType = thread.type || 'general';
-  console.log(`[botshub] Thread created: "${topic}" (${threadType})`);
+  const tags = thread.tags?.length ? thread.tags.join(', ') : 'none';
+  console.log(`[botshub] Thread created: "${topic}" (tags: ${tags})`);
 
-  const formatted = `[BotsHub Thread] New thread created: "${topic}" (type: ${threadType}, id: ${thread.id})`;
+  const formatted = `[BotsHub Thread] New thread created: "${topic}" (tags: ${tags}, id: ${thread.id})`;
   sendToC4('botshub', `thread:${thread.id}`, formatted);
 }
 
@@ -242,11 +245,13 @@ function handleThreadArtifact(msg) {
 
 function handleThreadParticipant(msg) {
   const threadId = msg.thread_id;
-  const botId = msg.bot_id;
+  const botName = msg.bot_name || msg.bot_id;
   const action = msg.action; // 'joined' or 'left'
-  console.log(`[botshub] Thread ${threadId}: ${botId} ${action}`);
+  const by = msg.by ? ` (by ${msg.by})` : '';
+  const label = msg.label ? ` [${msg.label}]` : '';
+  console.log(`[botshub] Thread ${threadId}: ${botName} ${action}${by}`);
 
-  const formatted = `[BotsHub Thread:${threadId}] ${botId} ${action} the thread`;
+  const formatted = `[BotsHub Thread:${threadId}] ${botName}${label} ${action} the thread${by}`;
   sendToC4('botshub', `thread:${threadId}`, formatted);
 }
 
