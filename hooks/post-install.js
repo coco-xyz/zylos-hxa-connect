@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import https from 'node:https';
-import http from 'node:http';
 
 const HOME = process.env.HOME;
 const DATA_DIR = path.join(HOME, 'zylos/components/botshub');
@@ -28,7 +26,8 @@ function loadEnv() {
 
 const env = loadEnv();
 const HUB_URL = env.BOTSHUB_URL || '';
-const ORG_KEY = env.BOTSHUB_ORG_KEY || '';
+const ORG_ID = env.BOTSHUB_ORG_ID || '';
+const ORG_TICKET = env.BOTSHUB_ORG_TICKET || '';
 const AGENT_NAME = env.BOTSHUB_AGENT_NAME || '';
 const PROXY_URL = env.HTTPS_PROXY || env.HTTP_PROXY || '';
 
@@ -50,8 +49,12 @@ if (!HUB_URL) {
   console.error('[post-install] BOTSHUB_URL not set in .env');
   process.exit(1);
 }
-if (!ORG_KEY) {
-  console.error('[post-install] BOTSHUB_ORG_KEY not set in .env');
+if (!ORG_ID) {
+  console.error('[post-install] BOTSHUB_ORG_ID not set in .env');
+  process.exit(1);
+}
+if (!ORG_TICKET) {
+  console.error('[post-install] BOTSHUB_ORG_TICKET not set in .env');
   process.exit(1);
 }
 if (!AGENT_NAME) {
@@ -59,84 +62,46 @@ if (!AGENT_NAME) {
   process.exit(1);
 }
 
-// 5. Register agent via BotsHub API
-function register() {
-  return new Promise((resolve, reject) => {
-    const url = new URL(`${HUB_URL}/api/register`);
-    const body = JSON.stringify({ name: AGENT_NAME, display_name: AGENT_NAME });
-    const options = {
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'https:' ? 443 : 80),
-      path: url.pathname,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ORG_KEY}`,
-        'Content-Length': Buffer.byteLength(body)
-      }
-    };
-
-    // Proxy support
-    if (PROXY_URL) {
-      const proxyUrl = new URL(PROXY_URL);
-      const connectOptions = {
-        hostname: proxyUrl.hostname,
-        port: proxyUrl.port || 80,
-        method: 'CONNECT',
-        path: `${url.hostname}:${url.port || 443}`
-      };
-      const proxyReq = http.request(connectOptions);
-      proxyReq.on('connect', (res, socket) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`Proxy CONNECT failed: ${res.statusCode}`));
-          return;
-        }
-        const req = https.request({ ...options, socket, agent: false }, handleResponse(resolve, reject));
-        req.on('error', reject);
-        req.write(body);
-        req.end();
-      });
-      proxyReq.on('error', reject);
-      proxyReq.end();
-      return;
-    }
-
-    const mod = url.protocol === 'https:' ? https : http;
-    const req = mod.request(options, handleResponse(resolve, reject));
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
+// 5. Set up proxy for fetch if needed
+if (PROXY_URL) {
+  try {
+    const { setGlobalDispatcher, ProxyAgent } = await import('undici');
+    setGlobalDispatcher(new ProxyAgent(PROXY_URL));
+    console.log(`[post-install] Using proxy: ${PROXY_URL}`);
+  } catch {
+    console.warn('[post-install] Could not set up fetch proxy — undici not available');
+  }
 }
 
-function handleResponse(resolve, reject) {
-  return (res) => {
-    let data = '';
-    res.on('data', chunk => data += chunk);
-    res.on('end', () => {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(new Error(`Invalid JSON response: ${data}`));
-        }
-      } else {
-        reject(new Error(`Registration failed (${res.statusCode}): ${data}`));
-      }
-    });
-  };
-}
-
+// 6. Register agent via ticket-based auth (POST /api/auth/register)
 try {
   console.log(`[post-install] Registering agent "${AGENT_NAME}" at ${HUB_URL}...`);
-  const result = await register();
+
+  const resp = await fetch(`${HUB_URL.replace(/\/$/, '')}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      org_id: ORG_ID,
+      ticket: ORG_TICKET,
+      name: AGENT_NAME,
+      display_name: AGENT_NAME,
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`Registration failed (${resp.status}): ${body}`);
+  }
+
+  const result = await resp.json();
 
   const config = {
     hub_url: HUB_URL,
+    org_id: ORG_ID,
     agent_id: result.agent_id || result.id || '',
     agent_token: result.token || '',
     agent_name: AGENT_NAME,
-    display_name: AGENT_NAME
+    display_name: AGENT_NAME,
   };
 
   if (!config.agent_token) {

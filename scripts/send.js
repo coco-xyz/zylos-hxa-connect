@@ -33,6 +33,7 @@ await setupFetchProxy();
 const client = new BotsHubClient({
   url: config.hub_url,
   token: config.agent_token,
+  ...(config.org_id && { orgId: config.org_id }),
 });
 
 try {
