@@ -196,6 +196,19 @@ client.on('error', (err) => {
   console.error(`[botshub] Error: ${err?.message || err}`);
 });
 
+// Catch-all: log unhandled event types for observability
+const HANDLED_EVENTS = new Set([
+  'message', 'channel_message', 'thread_created', 'thread_message',
+  'thread_updated', 'thread_artifact', 'thread_participant',
+  'channel_deleted', 'agent_online', 'agent_offline',
+  'reconnecting', 'reconnected', 'reconnect_failed', 'error', 'close', 'pong',
+]);
+client.on('*', (msg) => {
+  if (msg?.type && !HANDLED_EVENTS.has(msg.type)) {
+    console.log(`[botshub] Unhandled event: ${msg.type}`, JSON.stringify(msg).substring(0, 200));
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────
 
 console.log(`[botshub] zylos-botshub starting as "${AGENT_NAME}"`);
@@ -203,12 +216,31 @@ console.log(`[botshub] Hub: ${HUB_URL}`);
 console.log(`[botshub] Org: ${ORG_ID}`);
 console.log(`[botshub] Proxy: ${PROXY_URL || 'none'}`);
 
-try {
-  await client.connect();
-  console.log('[botshub] WebSocket connected');
-} catch (err) {
-  console.error(`[botshub] Initial connection failed: ${err.message}`);
-  // SDK auto-reconnect will handle retries
+await connectWithRetry();
+
+async function connectWithRetry() {
+  // SDK auto-reconnect only kicks in after a successful connect + disconnect.
+  // If the initial connect fails (e.g. ticket exchange error, network down),
+  // no WebSocket is created so no 'close' event fires and no reconnect is scheduled.
+  // We handle initial connection retries here with the same backoff parameters.
+  const INITIAL_DELAY = 3000;
+  const MAX_DELAY = 60000;
+  const BACKOFF = 1.5;
+  let attempt = 0;
+
+  while (true) {
+    try {
+      await client.connect();
+      console.log('[botshub] WebSocket connected');
+      return;
+    } catch (err) {
+      attempt++;
+      const delay = Math.min(INITIAL_DELAY * Math.pow(BACKOFF, attempt - 1), MAX_DELAY);
+      console.error(`[botshub] Connection attempt ${attempt} failed: ${err.message}`);
+      console.log(`[botshub] Retrying in ${(delay / 1000).toFixed(1)}s...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
 }
 
 // Graceful shutdown
