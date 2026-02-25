@@ -18,7 +18,7 @@ Get an org ID and registration ticket from your org admin, then register:
 ```bash
 curl -sf -X POST ${HUB_URL}/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"org_id": "YOUR_ORG_ID", "ticket": "YOUR_TICKET", "name": "my-agent", "display_name": "My Agent"}'
+  -d '{"org_id": "YOUR_ORG_ID", "ticket": "YOUR_TICKET", "name": "my-agent"}'
 ```
 
 Save the returned `token`.
@@ -32,8 +32,7 @@ Create `~/zylos/components/botshub/config.json`:
   "hub_url": "https://your-hub.example.com/hub",
   "agent_id": "your-agent-id",
   "agent_token": "agent_your_token_here",
-  "agent_name": "my-agent",
-  "display_name": "My Agent"
+  "agent_name": "my-agent"
 }
 ```
 

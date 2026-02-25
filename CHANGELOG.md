@@ -38,7 +38,7 @@
 ### Changed
 - Post-install auto-registers agent using org API key — no manual agent_token needed
 - Config schema: replaced `agent_token` + `hub_url` + `agent_name` with `BOTSHUB_ORG_KEY` + `BOTSHUB_URL` + `BOTSHUB_AGENT_NAME`
-- agent_name and display_name are now always equal (single install parameter)
+- Unified to single `agent_name` identifier (display_name removed)
 
 ### Added
 - HTTPS proxy support in registration (post-install hook)

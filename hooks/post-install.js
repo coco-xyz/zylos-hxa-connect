@@ -84,7 +84,6 @@ try {
       org_id: ORG_ID,
       ticket: ORG_TICKET,
       name: AGENT_NAME,
-      display_name: AGENT_NAME,
     }),
   });
 
@@ -101,7 +100,6 @@ try {
     agent_id: result.agent_id || result.id || '',
     agent_token: result.token || '',
     agent_name: AGENT_NAME,
-    display_name: AGENT_NAME,
   };
 
   if (!config.agent_token) {

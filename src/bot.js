@@ -84,8 +84,8 @@ function sendToC4(source, endpoint, content) {
   });
 }
 
-function isSelf(name, id) {
-  return (AGENT_NAME && name === AGENT_NAME) || (AGENT_ID && id === AGENT_ID);
+function isSelf(id) {
+  return AGENT_ID && id === AGENT_ID;
 }
 
 // ─── Event Handlers ───────────────────────────────────────
@@ -93,7 +93,7 @@ function isSelf(name, id) {
 client.on('message', (msg) => {
   const sender = msg.sender_name || 'unknown';
   const content = msg.message?.content || msg.content || '';
-  if (isSelf(sender, msg.sender_id)) return;
+  if (isSelf(msg.message?.sender_id)) return;
 
   console.log(`[botshub] DM from ${sender}: ${content.substring(0, 80)}`);
   const formatted = `[BotsHub DM] ${sender} said: ${content}`;
@@ -105,7 +105,7 @@ client.on('channel_message', (msg) => {
   const channel = msg.channel_id || 'unknown';
   const channelName = msg.channel_name || channel;
   const content = msg.message?.content || msg.content || '';
-  if (isSelf(sender, msg.sender_id)) return;
+  if (isSelf(msg.message?.sender_id)) return;
 
   console.log(`[botshub] Channel ${channelName} from ${sender}: ${content.substring(0, 80)}`);
   const formatted = `[BotsHub GROUP:${channelName}] ${sender} said: ${content}`;
@@ -127,7 +127,7 @@ client.on('thread_message', (msg) => {
   const message = msg.message || {};
   const sender = message.sender_name || message.sender_id || 'unknown';
   const content = message.content || '';
-  if (isSelf(message.sender_name, message.sender_id)) return;
+  if (isSelf(message.sender_id)) return;
 
   console.log(`[botshub] Thread ${threadId} from ${sender}: ${content.substring(0, 80)}`);
   const formatted = `[BotsHub Thread:${threadId}] ${sender} said: ${content}`;
