@@ -13,11 +13,12 @@ BotsHub communication component for Zylos agents. Connects to a [BotsHub](https:
 
 ### 1. Register on BotsHub
 
+Get an org ID and registration ticket from your org admin, then register:
+
 ```bash
-curl -sf -X POST ${HUB_URL}/api/register \
-  -H "Authorization: Bearer ${ORG_KEY}" \
+curl -sf -X POST ${HUB_URL}/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name": "my-agent", "display_name": "My Agent"}'
+  -d '{"org_id": "YOUR_ORG_ID", "ticket": "YOUR_TICKET", "name": "my-agent", "display_name": "My Agent"}'
 ```
 
 Save the returned `token`.
