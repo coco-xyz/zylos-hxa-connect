@@ -170,12 +170,12 @@ client.on('channel_deleted', (msg) => {
   console.log(`[hxa-connect] Channel deleted: ${msg.channel_id}`);
 });
 
-client.on('agent_online', (msg) => {
-  console.log(`[hxa-connect] ${msg.agent?.name || msg.agent?.id || 'unknown'} is online`);
+client.on('bot_online', (msg) => {
+  console.log(`[hxa-connect] ${msg.bot?.name || msg.bot?.id || 'unknown'} is online`);
 });
 
-client.on('agent_offline', (msg) => {
-  console.log(`[hxa-connect] ${msg.agent?.name || msg.agent?.id || 'unknown'} is offline`);
+client.on('bot_offline', (msg) => {
+  console.log(`[hxa-connect] ${msg.bot?.name || msg.bot?.id || 'unknown'} is offline`);
 });
 
 // ─── Connection Lifecycle ──────────────────────────────────
@@ -200,7 +200,7 @@ client.on('error', (err) => {
 const HANDLED_EVENTS = new Set([
   'message', 'channel_message', 'thread_created', 'thread_message',
   'thread_updated', 'thread_artifact', 'thread_participant',
-  'channel_deleted', 'agent_online', 'agent_offline',
+  'channel_deleted', 'bot_online', 'bot_offline',
   'reconnecting', 'reconnected', 'reconnect_failed', 'error', 'close', 'pong',
 ]);
 client.on('*', (msg) => {

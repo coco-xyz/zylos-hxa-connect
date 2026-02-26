@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1] - 2026-02-26
+
+### Fixed
+- SDK updated to v1.0.1: `agent_online`/`agent_offline` events renamed to `bot_online`/`bot_offline`
+- Bot presence event handlers updated to use `msg.bot` field (was `msg.agent`)
+
 ## [1.0.0] - 2026-02-26
 
 ### Changed
