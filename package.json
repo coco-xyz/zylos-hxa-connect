@@ -1,10 +1,10 @@
 {
   "name": "zylos-hxa-connect",
-  "version": "0.4.0",
+  "version": "1.0.0",
   "type": "module",
   "private": true,
   "dependencies": {
-    "hxa-connect-sdk": "github:coco-xyz/hxa-connect-sdk",
+    "hxa-connect-sdk": "github:coco-xyz/hxa-connect-sdk#v1.0.0",
     "https-proxy-agent": "^7.0.5",
     "undici": "^7.22.0",
     "ws": "^8.18.0"

@@ -1,67 +1,19 @@
 # Changelog
 
-## [0.4.0] - 2026-02-24
+## [1.0.0] - 2026-02-26
 
 ### Changed
-- **SDK upgrade to Phase 4 GA**: Updated hxa-connect-sdk with auto-reconnect, ThreadContext, and protocol updates
-- **Thread tags**: Thread `type` replaced with `tags` array — thread_created handler updated accordingly
-- **Participant events enriched**: thread_participant events now include `bot_name`, `by` (inviter), and `label` fields
+- **Version reset**: Rebrand to HXA-Connect (from BotsHub). Reset version to 1.0.0.
+- **SDK dependency pinned**: `hxa-connect-sdk` locked to `v1.0.0` tag (was floating `main`)
 
-### Added
-- **channel_deleted event handler**: Logs channel deletion events from the hub
-- **New SDK features available**: ReconnectOptions, ThreadContext class, toPromptContext() for LLM-ready output, OrgSettings/AuditEntry/WebhookHealth types
-
-## [0.3.1] - 2026-02-22
-
-### Fixed
-- **Self-message echo guard**: Added truthiness check for `isSelf()` to handle missing AGENT_ID gracefully (#6)
-- **Agent event field path**: Fixed `agent_online`/`agent_offline` event payload field extraction (#6)
-- **Startup warning**: Log warning when AGENT_ID is not configured (#6)
-
-## [0.3.0] - 2026-02-22
-
-### Added
-- **hxa-connect-sdk integration**: Outbound messages sent via SDK instead of raw curl
-- **Thread event handling**: thread_created, thread_message, thread_updated, thread_artifact, thread_participant events forwarded to C4
-- **Thread message sending**: `send.js thread:<id> "message"` for thread replies
-- **Agent presence logging**: agent_online/agent_offline events logged
-- **Shared env module**: DRY config/env loading across bot.js and send.js
-
-### Changed
-- send.js rewritten to use HxaConnectClient SDK (replaces curl/execSync)
-- bot.js refactored with switch-based event dispatch
-- WebSocket token URL-encoded for safety
-- Version bumped to 0.3.0
-
-## [0.2.0] - 2026-02-19
-
-### Changed
-- Post-install auto-registers agent using org API key — no manual agent_token needed
-- Config schema: replaced `agent_token` + `hub_url` + `agent_name` with `HXA_CONNECT_ORG_KEY` + `HXA_CONNECT_URL` + `HXA_CONNECT_AGENT_NAME`
-- Unified to single `agent_name` identifier (display_name removed)
-
-### Added
-- HTTPS proxy support in registration (post-install hook)
-- Skip registration if config.json already has agent_token (re-install safety)
-
-## [0.1.1] - 2026-02-17
-
-### Fixed
-- WebSocket keepalive ping every 30s to prevent idle connection drops (#2)
-- Timer cleanup in SIGINT/SIGTERM shutdown handlers (#2)
-
-### Changed
-- Log connection uptime on WebSocket close (#2)
-- Backoff reset only when reconnectDelay has grown beyond base value (#2)
-
-## [0.1.0] - 2026-02-15
-
-### Added
-- WebSocket transport for HXA-Connect connectivity
+### Added (carried from 0.x)
+- WebSocket transport with HxaConnectClient SDK
 - Auto-reconnect with exponential backoff
-- C4 bridge integration for message forwarding
+- C4 bridge integration for DM, thread, and artifact event forwarding
+- Thread message sending via `send.js thread:<id> "message"`
+- ThreadContext support with @mention triggers and buffered context delivery
+- Bot presence logging (online/offline events)
 - HTTPS proxy support for restricted networks
-- DM and group channel message handling
-- Outbound send script via HXA-Connect REST API
+- Post-install/post-upgrade hooks with auto-registration
 - PM2 service configuration
-- Post-install and post-upgrade hooks
+- Self-message echo guard

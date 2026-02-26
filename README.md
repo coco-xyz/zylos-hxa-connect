@@ -69,6 +69,12 @@ Optional proxy configuration in `~/zylos/.env`:
 HTTPS_PROXY=http://your-proxy:port
 ```
 
+## Compatibility
+
+| Version | SDK Version | Server Version | Status |
+|---------|------------|---------------|--------|
+| 1.0.x | 1.0.x | >= 1.0.0 | Current |
+
 ## License
 
 MIT
