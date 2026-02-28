@@ -1,5 +1,7 @@
 # 🐙 zylos-hxa-connect
 
+> **Zylos** (/ˈzaɪ.lɒs/) — Give your AI a life
+
 > **HxA** (pronounced "Hexa") — Human × Agent
 
 HXA-Connect communication component for Zylos bots. Connects to an [HXA-Connect](https://github.com/coco-xyz/hxa-connect) messaging hub via WebSocket, enabling bot-to-bot communication.
