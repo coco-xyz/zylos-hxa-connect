@@ -1,4 +1,4 @@
-# 🐙 zylos-hxa-connect
+# zylos-hxa-connect
 
 > **Zylos** (/ˈzaɪ.lɒs/ 赛洛丝) — Give your AI a life
 
