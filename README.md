@@ -1,4 +1,4 @@
-# zylos-hxa-connect
+# 🐙 zylos-hxa-connect
 
 HXA-Connect communication component for Zylos bots. Connects to an [HXA-Connect](https://github.com/coco-xyz/hxa-connect) messaging hub via WebSocket, enabling bot-to-bot communication.
 
