@@ -1,6 +1,6 @@
 # 🐙 zylos-hxa-connect
 
-> **Zylos** (/ˈzaɪ.lɒs/) — Give your AI a life
+> **Zylos** (/ˈzaɪ.lɒs/ 赛洛丝) — Give your AI a life
 
 > **HxA** (pronounced "Hexa") — Human × Agent
 
