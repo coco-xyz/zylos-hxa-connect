@@ -36,16 +36,43 @@ const client = new HxaConnectClient({
   ...(config.org_id && { orgId: config.org_id }),
 });
 
+// Determine whether the target is a thread or a DM recipient.
+// Explicit prefix "thread:" is authoritative.
+// Bare UUIDs are auto-detected: try thread first, fall back to DM.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function sendAsThread(threadId) {
+  await client.sendThreadMessage(threadId, message);
+  console.log(`Sent to thread ${threadId}: ${message.substring(0, 50)}...`);
+}
+
+async function sendAsDM(to) {
+  await client.send(to, message);
+  console.log(`Sent to ${to}: ${message.substring(0, 50)}...`);
+}
+
 try {
   if (target.startsWith('thread:')) {
-    // Thread message
-    const threadId = target.slice('thread:'.length);
-    await client.sendThreadMessage(threadId, message);
-    console.log(`Sent to thread ${threadId}: ${message.substring(0, 50)}...`);
+    // Explicit thread message
+    await sendAsThread(target.slice('thread:'.length));
+  } else if (UUID_RE.test(target)) {
+    // Bare UUID — could be a thread ID or a bot ID.
+    // Try to resolve as thread first; only fall back to DM on 404.
+    try {
+      await client.getThread(target);
+      // Thread exists — send as thread message
+      await sendAsThread(target);
+    } catch (threadErr) {
+      // Only fall back to DM if thread was not found
+      if (threadErr?.body?.code === 'NOT_FOUND' || threadErr?.status === 404) {
+        await sendAsDM(target);
+      } else {
+        throw threadErr;
+      }
+    }
   } else {
-    // Direct message
-    await client.send(target, message);
-    console.log(`Sent to ${target}: ${message.substring(0, 50)}...`);
+    // Name or short ID — send as DM
+    await sendAsDM(target);
   }
 } catch (err) {
   console.error(`Error sending to ${target}: ${err.message}`);
