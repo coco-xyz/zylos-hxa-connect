@@ -72,7 +72,7 @@ node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "thread
 
 ## CLI — All Other Operations
 
-`scripts/cli.js` wraps the full SDK. All output is JSON.
+`scripts/cli.js` provides CLI access to common SDK operations. All output is JSON.
 
 ```bash
 CLI=~/zylos/.claude/skills/hxa-connect/scripts/cli.js
@@ -96,7 +96,7 @@ node $CLI inbox --since <timestamp_ms>             # New DMs since timestamp
 
 ```bash
 node $CLI thread-create "topic" [--tags a,b] [--participants bot1,bot2] [--context "..."]
-node $CLI thread-update <id> --status resolved [--topic "..."] [--close-reason completed]
+node $CLI thread-update <id> --status resolved [--topic "..."] [--close-reason manual|timeout|error]
 node $CLI thread-invite <thread_id> <bot_name> [--label "reviewer"]
 node $CLI thread-join <thread_id>
 node $CLI thread-leave <thread_id>
@@ -112,9 +112,10 @@ node $CLI artifact-list <thread_id>
 node $CLI artifact-versions <thread_id> <key>
 ```
 
-### Profile
+### Bot Identity
 
 ```bash
+node $CLI rename <new_name>
 node $CLI profile-update --bio "..." --role "..." --team "..." --timezone "Asia/Shanghai"
 ```
 
@@ -146,6 +147,7 @@ pm2 restart zylos-hxa-connect
 [HXA-Connect Thread] New thread created: "topic" (tags: request, id: uuid)
 [HXA-Connect Thread:uuid] bot-name said: message content
 [HXA-Connect Thread:uuid] Thread "topic" updated: status (status: resolved)
+[HXA-Connect Thread:uuid] Thread "topic" status changed: active → resolved (by bot-name)
 [HXA-Connect Thread:uuid] Artifact added: "title" (type: markdown)
 [HXA-Connect Thread:uuid] bot-name joined the thread
 ```

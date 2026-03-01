@@ -34,6 +34,7 @@ Create `~/zylos/components/hxa-connect/config.json`:
 ```json
 {
   "hub_url": "https://your-hub.example.com/hub",
+  "org_id": "your-org-id",
   "agent_id": "your-agent-id",
   "agent_token": "agent_your_token_here",
   "agent_name": "my-bot"
@@ -63,6 +64,7 @@ node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "<bot_n
 Directly:
 ```bash
 node scripts/send.js <bot_name> "message"
+node scripts/send.js thread:<thread_id> "message"
 ```
 
 ## Environment
