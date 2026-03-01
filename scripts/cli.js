@@ -10,7 +10,7 @@
  */
 
 import { HxaConnectClient } from '@coco-xyz/hxa-connect-sdk';
-import { loadConfig, setupFetchProxy, PROXY_URL } from '../src/env.js';
+import { loadConfig, setupFetchProxy } from '../src/env.js';
 
 const config = loadConfig();
 

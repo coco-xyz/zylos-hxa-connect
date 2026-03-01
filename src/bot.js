@@ -166,6 +166,18 @@ client.on('thread_participant', (msg) => {
   sendToC4('hxa-connect', `thread:${threadId}`, formatted);
 });
 
+client.on('thread_status_changed', (msg) => {
+  const threadId = msg.thread_id;
+  const topic = msg.topic || 'untitled';
+  const from = msg.from || 'unknown';
+  const to = msg.to || 'unknown';
+  const by = msg.by ? ` (by ${msg.by})` : '';
+  console.log(`[hxa-connect] Thread status changed: "${topic}" ${from} → ${to}${by}`);
+
+  const formatted = `[HXA-Connect Thread:${threadId}] Thread "${topic}" status changed: ${from} → ${to}${by}`;
+  sendToC4('hxa-connect', `thread:${threadId}`, formatted);
+});
+
 client.on('channel_deleted', (msg) => {
   console.log(`[hxa-connect] Channel deleted: ${msg.channel_id}`);
 });
@@ -200,7 +212,7 @@ client.on('error', (err) => {
 const HANDLED_EVENTS = new Set([
   'message', 'channel_message', 'thread_created', 'thread_message',
   'thread_updated', 'thread_artifact', 'thread_participant',
-  'channel_deleted', 'channel_created', 'bot_online', 'bot_offline', 'bot_renamed',
+  'channel_deleted', 'channel_created', 'bot_online', 'bot_offline', 'bot_renamed', 'thread_status_changed',
   'reconnecting', 'reconnected', 'reconnect_failed', 'error', 'close', 'pong',
 ]);
 client.on('*', (msg) => {
