@@ -3,36 +3,16 @@
  * zylos-hxa-connect CLI — exposes SDK capabilities as subcommands.
  *
  * Usage:
- *   node cli.js <command> [options]
+ *   node cli.js <command> [--org <label>] [options]
  *
  * All output is JSON for easy parsing by Claude.
  * Message sending is NOT here — it goes through C4 (c4-send.js → send.js).
  */
 
 import { HxaConnectClient } from '@coco-xyz/hxa-connect-sdk';
-import { loadConfig, setupFetchProxy } from '../src/env.js';
-
-const config = loadConfig();
-
-if (!config.hub_url || !config.agent_token) {
-  console.error(JSON.stringify({ error: 'hub_url and agent_token required in config.json' }));
-  process.exit(1);
-}
-if (!config.org_id) {
-  console.error(JSON.stringify({ error: 'org_id required in config.json' }));
-  process.exit(1);
-}
-
-await setupFetchProxy();
-
-const client = new HxaConnectClient({
-  url: config.hub_url,
-  token: config.agent_token,
-  orgId: config.org_id,
-});
+import { migrateConfig, resolveOrgs, setupFetchProxy } from '../src/env.js';
 
 const args = process.argv.slice(2);
-const command = args[0];
 
 function getFlag(name) {
   const idx = args.indexOf(`--${name}`);
@@ -53,6 +33,44 @@ function fail(msg) {
   process.exit(1);
 }
 
+let config, resolved, orgLabels;
+try {
+  config = migrateConfig();
+  resolved = resolveOrgs(config);
+  orgLabels = Object.keys(resolved.orgs);
+} catch (err) {
+  fail(err.message);
+}
+
+const orgLabel = getFlag('org') || (resolved.orgs.default ? 'default' : orgLabels[0]);
+const org = resolved.orgs[orgLabel];
+if (!org) fail(`Org "${orgLabel}" not found. Available: ${orgLabels.join(', ')}`);
+if (!org.hubUrl) fail(`No hub_url configured for org "${orgLabel}"`);
+
+await setupFetchProxy();
+
+const client = new HxaConnectClient({
+  url: org.hubUrl,
+  token: org.agentToken,
+  orgId: org.orgId,
+});
+
+// Flags that take a value (skip next arg when encountered before command)
+const VALUE_FLAGS = new Set(['org']);
+
+// Find command: first positional arg (skip --flags and their values)
+let command, commandIdx;
+for (let i = 0; i < args.length; i++) {
+  if (args[i].startsWith('--')) {
+    const flag = args[i].slice(2);
+    if (VALUE_FLAGS.has(flag)) i++; // skip value for known value-flags
+    continue;
+  }
+  command = args[i];
+  commandIdx = i;
+  break;
+}
+
 try {
   switch (command) {
     // ─── Query ──────────────────────────────────────────────
@@ -71,16 +89,16 @@ try {
     }
 
     case 'thread': {
-      const id = args[1];
-      if (!id) fail('Usage: cli.js thread <thread_id>');
+      const id = args[commandIdx + 1];
+      if (!id || id.startsWith('--')) fail('Usage: cli.js thread <thread_id>');
       const thread = await client.getThread(id);
       out(thread);
       break;
     }
 
     case 'messages': {
-      const id = args[1];
-      if (!id) fail('Usage: cli.js messages <thread_id> [--limit N] [--since TS] [--before TS]');
+      const id = args[commandIdx + 1];
+      if (!id || id.startsWith('--')) fail('Usage: cli.js messages <thread_id> [--limit N] [--since TS] [--before TS]');
       const limit = getFlag('limit');
       const since = getFlag('since');
       const before = getFlag('before');
@@ -137,8 +155,8 @@ try {
     // ─── Thread Operations ──────────────────────────────────
 
     case 'thread-create': {
-      const topic = args[1];
-      if (!topic) fail('Usage: cli.js thread-create "topic" [--tags a,b] [--participants bot1,bot2] [--context "..."]');
+      const topic = args[commandIdx + 1];
+      if (!topic || topic.startsWith('--')) fail('Usage: cli.js thread-create "topic" [--tags a,b] [--participants bot1,bot2] [--context "..."]');
       const opts = { topic };
       const tags = getFlag('tags');
       const participants = getFlag('participants');
@@ -152,8 +170,8 @@ try {
     }
 
     case 'thread-update': {
-      const id = args[1];
-      if (!id) fail('Usage: cli.js thread-update <thread_id> [--status active|blocked|reviewing|resolved|closed] [--topic "..."] [--close-reason manual|timeout|error]');
+      const id = args[commandIdx + 1];
+      if (!id || id.startsWith('--')) fail('Usage: cli.js thread-update <thread_id> [--status active|blocked|reviewing|resolved|closed] [--topic "..."] [--close-reason manual|timeout|error]');
       const updates = {};
       const status = getFlag('status');
       const topic = getFlag('topic');
@@ -170,9 +188,9 @@ try {
     }
 
     case 'thread-invite': {
-      const threadId = args[1];
-      const botId = args[2];
-      if (!threadId || !botId) fail('Usage: cli.js thread-invite <thread_id> <bot_name_or_id> [--label "role"]');
+      const threadId = args[commandIdx + 1];
+      const botId = args[commandIdx + 2];
+      if (!threadId || threadId.startsWith('--') || !botId || botId.startsWith('--')) fail('Usage: cli.js thread-invite <thread_id> <bot_name_or_id> [--label "role"]');
       const label = getFlag('label');
       const result = await client.invite(threadId, botId, label);
       out(result);
@@ -180,16 +198,16 @@ try {
     }
 
     case 'thread-join': {
-      const threadId = args[1];
-      if (!threadId) fail('Usage: cli.js thread-join <thread_id>');
+      const threadId = args[commandIdx + 1];
+      if (!threadId || threadId.startsWith('--')) fail('Usage: cli.js thread-join <thread_id>');
       const result = await client.joinThread(threadId);
       out(result);
       break;
     }
 
     case 'thread-leave': {
-      const threadId = args[1];
-      if (!threadId) fail('Usage: cli.js thread-leave <thread_id>');
+      const threadId = args[commandIdx + 1];
+      if (!threadId || threadId.startsWith('--')) fail('Usage: cli.js thread-leave <thread_id>');
       await client.leave(threadId);
       out({ ok: true });
       break;
@@ -198,9 +216,9 @@ try {
     // ─── Artifacts ──────────────────────────────────────────
 
     case 'artifact-add': {
-      const threadId = args[1];
-      const key = args[2];
-      if (!threadId || !key) fail('Usage: cli.js artifact-add <thread_id> <key> --type markdown|code|text|link --title "..." [--body "..."] [--url "..."] [--language js]');
+      const threadId = args[commandIdx + 1];
+      const key = args[commandIdx + 2];
+      if (!threadId || threadId.startsWith('--') || !key || key.startsWith('--')) fail('Usage: cli.js artifact-add <thread_id> <key> --type markdown|code|text|link --title "..." [--body "..."] [--url "..."] [--language js]');
       const type = getFlag('type');
       if (!type) fail('--type is required (markdown, code, text, link)');
       const artifact = { type };
@@ -212,7 +230,6 @@ try {
       if (body) artifact.content = body;
       if (url) artifact.url = url;
       if (language) artifact.language = language;
-      // Support reading body from stdin if --stdin flag is present
       if (hasFlag('stdin')) {
         const chunks = [];
         for await (const chunk of process.stdin) chunks.push(chunk);
@@ -224,9 +241,9 @@ try {
     }
 
     case 'artifact-update': {
-      const threadId = args[1];
-      const key = args[2];
-      if (!threadId || !key) fail('Usage: cli.js artifact-update <thread_id> <key> --body "..." [--title "..."]');
+      const threadId = args[commandIdx + 1];
+      const key = args[commandIdx + 2];
+      if (!threadId || threadId.startsWith('--') || !key || key.startsWith('--')) fail('Usage: cli.js artifact-update <thread_id> <key> --body "..." | --stdin [--title "..."]');
       const updates = {};
       const body = getFlag('body');
       const title = getFlag('title');
@@ -246,17 +263,17 @@ try {
     }
 
     case 'artifact-list': {
-      const threadId = args[1];
-      if (!threadId) fail('Usage: cli.js artifact-list <thread_id>');
+      const threadId = args[commandIdx + 1];
+      if (!threadId || threadId.startsWith('--')) fail('Usage: cli.js artifact-list <thread_id>');
       const artifacts = await client.listArtifacts(threadId);
       out(artifacts);
       break;
     }
 
     case 'artifact-versions': {
-      const threadId = args[1];
-      const key = args[2];
-      if (!threadId || !key) fail('Usage: cli.js artifact-versions <thread_id> <key>');
+      const threadId = args[commandIdx + 1];
+      const key = args[commandIdx + 2];
+      if (!threadId || threadId.startsWith('--') || !key || key.startsWith('--')) fail('Usage: cli.js artifact-versions <thread_id> <key>');
       const versions = await client.getArtifactVersions(threadId, key);
       out(versions);
       break;
@@ -283,8 +300,8 @@ try {
     }
 
     case 'rename': {
-      const name = args[1];
-      if (!name) fail('Usage: cli.js rename <new_name>');
+      const name = args[commandIdx + 1];
+      if (!name || name.startsWith('--')) fail('Usage: cli.js rename <new_name>');
       const result = await client.rename(name);
       out(result);
       break;
@@ -293,9 +310,9 @@ try {
     // ─── Admin ──────────────────────────────────────────────
 
     case 'role': {
-      const botId = args[1];
-      const role = args[2];
-      if (!botId || !role) fail('Usage: cli.js role <bot_id_or_name> admin|member');
+      const botId = args[commandIdx + 1];
+      const role = args[commandIdx + 2];
+      if (!botId || botId.startsWith('--') || !role || role.startsWith('--')) fail('Usage: cli.js role <bot_id_or_name> admin|member');
       if (role !== 'admin' && role !== 'member') fail('Role must be "admin" or "member"');
       const result = await client.setBotRole(botId, role);
       out(result);
@@ -323,7 +340,9 @@ try {
     case 'help':
     case undefined: {
       out({
-        usage: 'cli.js <command> [options]',
+        usage: 'cli.js <command> [--org <label>] [options]',
+        orgs: orgLabels,
+        active_org: orgLabel,
         commands: {
           query: {
             peers: 'List bots in the org',
@@ -359,7 +378,7 @@ try {
             'rotate-secret': 'Rotate org secret',
           },
         },
-        note: 'Message sending goes through C4: c4-send.js "hxa-connect" "<bot|thread:id>" "msg"',
+        note: 'Message sending goes through C4: c4-send.js "hxa-connect" "[org:<label>|]<bot|thread:id>" "msg"',
       });
       break;
     }
