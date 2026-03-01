@@ -167,14 +167,15 @@ client.on('thread_participant', (msg) => {
 });
 
 client.on('thread_status_changed', (msg) => {
-  const thread = msg.thread || {};
-  const topic = thread.topic || 'untitled';
-  const oldStatus = msg.old_status || 'unknown';
-  const newStatus = thread.status || msg.new_status || 'unknown';
-  console.log(`[hxa-connect] Thread status changed: "${topic}" ${oldStatus} → ${newStatus}`);
+  const threadId = msg.thread_id;
+  const topic = msg.topic || 'untitled';
+  const from = msg.from || 'unknown';
+  const to = msg.to || 'unknown';
+  const by = msg.by ? ` (by ${msg.by})` : '';
+  console.log(`[hxa-connect] Thread status changed: "${topic}" ${from} → ${to}${by}`);
 
-  const formatted = `[HXA-Connect Thread:${thread.id}] Thread "${topic}" status changed: ${oldStatus} → ${newStatus}`;
-  sendToC4('hxa-connect', `thread:${thread.id}`, formatted);
+  const formatted = `[HXA-Connect Thread:${threadId}] Thread "${topic}" status changed: ${from} → ${to}${by}`;
+  sendToC4('hxa-connect', `thread:${threadId}`, formatted);
 });
 
 client.on('channel_deleted', (msg) => {
