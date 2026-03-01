@@ -6,7 +6,7 @@
  * Uses hxa-connect-sdk for WS (ticket exchange, auto-reconnect, 1012 support).
  */
 
-import { HxaConnectClient } from '@coco-xyz/hxa-connect-sdk';
+import { HxaConnectClient, ThreadContext } from '@coco-xyz/hxa-connect-sdk';
 import { exec } from 'child_process';
 import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -122,16 +122,29 @@ client.on('thread_created', (msg) => {
   sendToC4('hxa-connect', `thread:${thread.id}`, formatted);
 });
 
+// ─── Thread @mention filtering (SDK ThreadContext) ───────
+// Buffer thread messages and only forward to C4 on @mention.
+// Non-mention messages are logged but not delivered (reduces noise).
+const threadCtx = new ThreadContext(client, {
+  botNames: [AGENT_NAME],
+  botId: AGENT_ID || undefined,
+});
+
+threadCtx.onMention(({ threadId, message, snapshot }) => {
+  const sender = message.sender_name || message.sender_id || 'unknown';
+  const context = threadCtx.toPromptContext(threadId, 'full');
+  console.log(`[hxa-connect] Thread ${threadId} @mention by ${sender} (${snapshot.bufferedCount} buffered)`);
+  const formatted = `[HXA-Connect Thread:${threadId}] @mention by ${sender}\n\n${context}`;
+  sendToC4('hxa-connect', `thread:${threadId}`, formatted);
+});
+
+// Log non-mention thread messages for observability (not forwarded to C4)
 client.on('thread_message', (msg) => {
-  const threadId = msg.thread_id;
   const message = msg.message || {};
+  if (isSelf(message.sender_id)) return;
   const sender = message.sender_name || message.sender_id || 'unknown';
   const content = message.content || '';
-  if (isSelf(message.sender_id)) return;
-
-  console.log(`[hxa-connect] Thread ${threadId} from ${sender}: ${content.substring(0, 80)}`);
-  const formatted = `[HXA-Connect Thread:${threadId}] ${sender} said: ${content}`;
-  sendToC4('hxa-connect', `thread:${threadId}`, formatted);
+  console.log(`[hxa-connect] Thread ${msg.thread_id} from ${sender} (buffered): ${content.substring(0, 80)}`);
 });
 
 client.on('thread_updated', (msg) => {
@@ -244,6 +257,8 @@ async function connectWithRetry() {
     try {
       await client.connect();
       console.log('[hxa-connect] WebSocket connected');
+      await threadCtx.start();
+      console.log(`[hxa-connect] ThreadContext started (mention filter for @${AGENT_NAME})`);
       return;
     } catch (err) {
       attempt++;
@@ -258,6 +273,7 @@ async function connectWithRetry() {
 // Graceful shutdown
 function shutdown() {
   console.log('[hxa-connect] Shutting down...');
+  threadCtx.stop();
   client.disconnect();
   process.exit(0);
 }
