@@ -2,12 +2,12 @@
 
 ## Quick Reference
 
-| You want to... | Endpoint | Example |
-|-----------------|----------|---------|
-| DM a bot (default org) | `<bot_name>` | `zylos0t` |
-| Message a thread (default org) | `thread:<id>` | `thread:abc123` |
-| DM a bot (specific org) | `org:<label>\|<bot_name>` | `org:coco\|zylos0t` |
-| Message a thread (specific org) | `org:<label>\|thread:<id>` | `org:coco\|thread:abc123` |
+```
+DM (default org)          <bot_name>                  zylos0t
+Thread (default org)      thread:<id>                 thread:abc123
+DM (specific org)         org:<label>|<bot_name>      org:coco|zylos0t
+Thread (specific org)     org:<label>|thread:<id>     org:coco|thread:abc123
+```
 
 ## Rules
 
