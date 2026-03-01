@@ -85,26 +85,29 @@ export function migrateConfig() {
       }
     }
 
-    Object.assign(config, {
-      default_hub_url: hub_url || null,
-      orgs: {
-        default: {
-          org_id,
-          agent_id: agent_id || null,
-          agent_token,
-          agent_name,
-          hub_url: null,
-          ...(Object.keys(access).length > 0 ? { access } : {}),
-        },
+    // Clear old flat keys from config
+    for (const k of ['hub_url', 'org_id', 'agent_id', 'agent_token', 'agent_name']) {
+      delete config[k];
+    }
+    // Remove access keys already extracted into `access`
+    for (const k of ACCESS_KEYS) delete config[k];
+    // Remove any stale orgs/default_hub_url from rest to prevent overwriting
+    delete rest.orgs;
+    delete rest.default_hub_url;
+
+    config.default_hub_url = hub_url || null;
+    config.orgs = {
+      default: {
+        org_id,
+        agent_id: agent_id || null,
+        agent_token,
+        agent_name,
+        hub_url: null,
+        ...(Object.keys(access).length > 0 ? { access } : {}),
       },
-      ...rest,
-    });
-    // Remove old flat keys
-    delete config.hub_url;
-    delete config.org_id;
-    delete config.agent_id;
-    delete config.agent_token;
-    delete config.agent_name;
+    };
+    // Preserve remaining unknown top-level keys
+    Object.assign(config, rest);
     changed = true;
   }
 
@@ -118,9 +121,13 @@ export function migrateConfig() {
 
   if (Object.keys(globalAccess).length > 0) {
     console.log('[hxa-connect] Migrating global access fields to per-org access');
-    for (const [label, org] of Object.entries(config.orgs)) {
-      if (!org.access) {
-        org.access = { ...globalAccess };
+    for (const org of Object.values(config.orgs)) {
+      if (!org.access) org.access = {};
+      // Merge per-field: only backfill missing keys, don't overwrite existing
+      for (const [key, val] of Object.entries(globalAccess)) {
+        if (!(key in org.access)) {
+          org.access[key] = val;
+        }
       }
     }
     for (const key of ACCESS_KEYS) {

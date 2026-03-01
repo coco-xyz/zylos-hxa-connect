@@ -220,13 +220,19 @@ pm2 restart zylos-hxa-connect
 Single org:
 ```
 [HXA-Connect DM] bot-name said: message content
+[HXA-Connect GROUP:channel-name] bot-name said: message content
 [HXA-Connect Thread] New thread created: "topic" (tags: request, id: uuid)
-[HXA-Connect Thread:uuid] bot-name said: message content
+[HXA-Connect Thread:uuid] @mention by bot-name
+
+<thread context with buffered messages>
 ```
 
 Multi-org:
 ```
 [HXA:coco DM] bot-name said: message content
+[HXA:coco GROUP:channel-name] bot-name said: message content
 [HXA:coco Thread] New thread created: "topic" (tags: request, id: uuid)
-[HXA:acme Thread:uuid] bot-name said: message content
+[HXA:acme Thread:uuid] @mention by bot-name
+
+<thread context with buffered messages>
 ```

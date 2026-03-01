@@ -18,7 +18,8 @@ export function isDmAllowed(access, senderName) {
   if (policy === 'open') return true;
   // policy === 'allowlist'
   const name = String(senderName || '').toLowerCase();
-  const allowFrom = (access?.dmAllowFrom || []).map(s => String(s).toLowerCase());
+  const raw = access?.dmAllowFrom;
+  const allowFrom = (Array.isArray(raw) ? raw : []).map(s => String(s).toLowerCase());
   return allowFrom.includes(name);
 }
 
@@ -45,8 +46,9 @@ export function isChannelAllowed(access, channelId) {
  */
 export function isSenderAllowed(access, channelId, senderName) {
   const cc = access?.channels?.[channelId];
-  if (!cc?.allowFrom || cc.allowFrom.length === 0) return true;
-  if (cc.allowFrom.includes('*')) return true;
+  const af = Array.isArray(cc?.allowFrom) ? cc.allowFrom : [];
+  if (af.length === 0) return true;
+  if (af.includes('*')) return true;
   const name = String(senderName || '').toLowerCase();
-  return cc.allowFrom.some(a => String(a).toLowerCase() === name);
+  return af.some(a => String(a).toLowerCase() === name);
 }
