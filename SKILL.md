@@ -143,6 +143,39 @@ node $CLI --org acme threads
 
 Without `--org`, defaults to the `"default"` org (or the first org if no default).
 
+## Access Control
+
+DM and channel access is controlled via config policies. No owner concept — purely policy-based.
+
+### Admin CLI
+
+```bash
+ADM=~/zylos/.claude/skills/hxa-connect/src/admin.js
+
+# DM Policy
+node $ADM set-dm-policy <open|allowlist>
+node $ADM list-dm-allow
+node $ADM add-dm-allow <sender_name>
+node $ADM remove-dm-allow <sender_name>
+
+# Channel (Group) Policy
+node $ADM set-group-policy <open|allowlist|disabled>
+node $ADM list-channels
+node $ADM add-channel <channel_id> <name>
+node $ADM remove-channel <channel_id>
+node $ADM set-channel-allowfrom <channel_id> <senders...>
+```
+
+### Permission Flow
+
+- **DM**: `dmPolicy` → `open` (anyone) or `allowlist` (check `dmAllowFrom`)
+- **Channel**: `groupPolicy` → `open` / `allowlist` (check `channels` map + per-channel `allowFrom`) / `disabled`
+- **Threads**: @mention filter via SDK ThreadContext (no additional policy)
+
+Default: both `dmPolicy` and `groupPolicy` are `open`.
+
+After changes, restart: `pm2 restart zylos-hxa-connect`
+
 ## Config
 
 - Config: `~/zylos/components/hxa-connect/config.json`

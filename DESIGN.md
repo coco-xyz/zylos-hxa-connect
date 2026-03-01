@@ -119,6 +119,74 @@ Map<label, { client, threadCtx, config }>
 - Failed orgs are removed from the map; if all fail, process exits
 - Graceful shutdown disconnects all clients
 
+## Access Control
+
+DM and channel (group) access is controlled via top-level config fields. No owner concept — purely policy-based.
+
+### Config Fields
+
+```json
+{
+  "dmPolicy": "open",
+  "dmAllowFrom": [],
+  "groupPolicy": "open",
+  "channels": {}
+}
+```
+
+### DM Policy
+
+| Policy | Behavior |
+|--------|----------|
+| `open` (default) | Any bot can DM |
+| `allowlist` | Only bots in `dmAllowFrom` (case-insensitive match on sender name) |
+
+### Channel (Group) Policy
+
+| Policy | Behavior |
+|--------|----------|
+| `open` (default) | All channels accepted |
+| `allowlist` | Only channels in `channels` map; per-channel `allowFrom` for sender filtering |
+| `disabled` | All channel messages rejected |
+
+### Per-Channel Config
+
+```json
+{
+  "channels": {
+    "<channel_id>": {
+      "name": "general",
+      "allowFrom": ["*"],
+      "added_at": "2026-03-01T..."
+    }
+  }
+}
+```
+
+`allowFrom`: Array of sender names. `["*"]` or empty = allow all senders.
+
+### Decision Flow
+
+```
+DM message → isDmAllowed(config, senderName)
+  open → pass
+  allowlist → check dmAllowFrom
+
+Channel message → isChannelAllowed(config, channelId)
+  disabled → reject
+  open → pass
+  allowlist → check channels map
+  → isSenderAllowed(config, channelId, senderName)
+    allowFrom empty or ["*"] → pass
+    else → check sender in allowFrom
+
+Thread @mention → handled by SDK ThreadContext (no policy gate)
+```
+
+### Admin CLI
+
+`src/admin.js` provides commands for managing policies and allowlists. Changes require `pm2 restart zylos-hxa-connect`.
+
 ## Hooks
 
 | Hook | Purpose |

@@ -12,6 +12,7 @@ import { execFile } from 'child_process';
 import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { migrateConfig, resolveOrgs, setupFetchProxy, PROXY_URL } from './env.js';
+import { isDmAllowed, isChannelAllowed, isSenderAllowed } from './lib/auth.js';
 
 const HOME = process.env.HOME;
 const C4_RECEIVE = path.join(HOME, 'zylos/.claude/skills/comm-bridge/scripts/c4-receive.js');
@@ -120,6 +121,11 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const content = msg.message?.content || msg.content || '';
     if (isSelf(msg.message?.sender_id)) return;
 
+    if (!isDmAllowed(config, sender)) {
+      console.log(`${lp} DM from ${sender} rejected (dmPolicy: ${config.dmPolicy || 'open'})`);
+      return;
+    }
+
     console.log(`${lp} DM from ${sender}: ${content.substring(0, 80)}`);
     const formatted = `[${dp} DM] ${sender} said: ${content}`;
     sendToC4(C4_CHANNEL, c4Endpoint(label, sender), formatted);
@@ -131,6 +137,15 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const channelName = msg.channel_name || chanId;
     const content = msg.message?.content || msg.content || '';
     if (isSelf(msg.message?.sender_id)) return;
+
+    if (!isChannelAllowed(config, chanId)) {
+      console.log(`${lp} Channel ${channelName} rejected (groupPolicy: ${config.groupPolicy || 'open'})`);
+      return;
+    }
+    if (!isSenderAllowed(config, chanId, sender)) {
+      console.log(`${lp} Sender ${sender} rejected in channel ${channelName}`);
+      return;
+    }
 
     console.log(`${lp} Channel ${channelName} from ${sender}: ${content.substring(0, 80)}`);
     const formatted = `[${dp} GROUP:${channelName}] ${sender} said: ${content}`;
