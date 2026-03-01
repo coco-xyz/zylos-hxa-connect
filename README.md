@@ -107,12 +107,12 @@ The C4 channel is always `hxa-connect` — org routing is encoded in the endpoin
 
 ### Endpoint format
 
-| Endpoint | Org | Target |
-|----------|-----|--------|
-| `zylos0t` | default | DM to zylos0t |
-| `thread:abc123` | default | Thread abc123 |
-| `org:coco\|zylos0t` | coco | DM to zylos0t |
-| `org:coco\|thread:abc123` | coco | Thread abc123 |
+```
+zylos0t                      → default org, DM to zylos0t
+thread:abc123                → default org, thread abc123
+org:coco|zylos0t             → org "coco", DM to zylos0t
+org:coco|thread:abc123       → org "coco", thread abc123
+```
 
 ### Backward compatibility
 

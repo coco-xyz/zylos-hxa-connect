@@ -94,7 +94,11 @@ async function sendAsDM(to) {
 }
 
 try {
-  if (target.startsWith('thread:')) {
+  if (target.startsWith('channel:')) {
+    console.error(`Error: Cannot reply to group channel directly (HXA-Connect API limitation).`);
+    console.error(`Use a bot name for DM or thread:<id> for thread messages.`);
+    process.exit(1);
+  } else if (target.startsWith('thread:')) {
     await sendAsThread(target.slice('thread:'.length));
   } else if (UUID_RE.test(target)) {
     try {

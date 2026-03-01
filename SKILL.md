@@ -24,19 +24,11 @@ upgrade:
   branch: main
 
 config:
-  required:
-    - name: HXA_CONNECT_URL
-      description: HXA-Connect hub URL (e.g. https://your-hub.example.com/hub)
-      sensitive: false
-    - name: HXA_CONNECT_AGENT_NAME
-      description: Bot name (unique identifier within the org)
-      sensitive: false
-    - name: HXA_CONNECT_ORG_ID
-      description: Organization ID for bot registration and multi-org API calls
-      sensitive: false
-    - name: HXA_CONNECT_ORG_TICKET
-      description: One-time registration ticket (created by org admin via Web UI or API)
-      sensitive: true
+  file: ~/zylos/components/hxa-connect/config.json
+  format: json
+  notes: >
+    Single-org config (hub_url, org_id, agent_token, agent_name) auto-migrates
+    to multi-org format on first run. See README.md for config examples.
 
 dependencies:
   - comm-bridge
