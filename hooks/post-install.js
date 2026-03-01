@@ -5,6 +5,7 @@ import path from 'node:path';
 const HOME = process.env.HOME;
 const DATA_DIR = path.join(HOME, 'zylos/components/hxa-connect');
 const ENV_PATH = path.join(HOME, 'zylos/.env');
+const configPath = path.join(DATA_DIR, 'config.json');
 
 // 1. Create data subdirectories
 fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
@@ -31,11 +32,21 @@ const ORG_TICKET = env.HXA_CONNECT_ORG_TICKET || '';
 const AGENT_NAME = env.HXA_CONNECT_AGENT_NAME || '';
 const PROXY_URL = env.HTTPS_PROXY || env.HTTP_PROXY || '';
 
-// 3. Check if config already has a valid agent_token (re-install / upgrade scenario)
-const configPath = path.join(DATA_DIR, 'config.json');
+// 3. Check if config already has valid credentials (re-install / upgrade scenario)
+//    Handles both old format (agent_token at top level) and new format (orgs map)
 if (fs.existsSync(configPath)) {
   try {
     const existing = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    // New multi-org format: check any org has a token
+    if (existing.orgs) {
+      const hasToken = Object.values(existing.orgs).some(o => o.agent_token);
+      if (hasToken) {
+        console.log('[post-install] config.json already has orgs with credentials, skipping registration');
+        console.log('[post-install] Complete!');
+        process.exit(0);
+      }
+    }
+    // Old single-org format: check top-level token
     if (existing.agent_token) {
       console.log('[post-install] config.json already has agent_token, skipping registration');
       console.log('[post-install] Complete!');
@@ -93,22 +104,30 @@ try {
   }
 
   const result = await resp.json();
+  const agentToken = result.token || '';
+  const agentId = result.agent_id || result.id || '';
 
-  const config = {
-    hub_url: HUB_URL,
-    org_id: ORG_ID,
-    agent_id: result.agent_id || result.id || '',
-    agent_token: result.token || '',
-    agent_name: AGENT_NAME,
-  };
-
-  if (!config.agent_token) {
+  if (!agentToken) {
     console.error('[post-install] Registration succeeded but no token returned:', JSON.stringify(result));
     process.exit(1);
   }
 
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  console.log(`[post-install] Registered successfully. Agent ID: ${config.agent_id}`);
+  // Write new multi-org config format directly
+  const config = {
+    default_hub_url: HUB_URL,
+    orgs: {
+      default: {
+        org_id: ORG_ID,
+        agent_id: agentId,
+        agent_token: agentToken,
+        agent_name: AGENT_NAME,
+        hub_url: null,
+      },
+    },
+  };
+
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+  console.log(`[post-install] Registered successfully. Agent ID: ${agentId}`);
   console.log('[post-install] Complete!');
 } catch (err) {
   console.error(`[post-install] Registration failed: ${err.message}`);

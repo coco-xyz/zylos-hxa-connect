@@ -14,6 +14,7 @@ lifecycle:
   data_dir: ~/zylos/components/hxa-connect
   hooks:
     post-install: hooks/post-install.js
+    pre-upgrade: hooks/pre-upgrade.js
     post-upgrade: hooks/post-upgrade.js
   preserve:
     - config.json

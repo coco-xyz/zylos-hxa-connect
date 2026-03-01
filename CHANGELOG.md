@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.2.0] - 2026-03-01
+
+### Added
+- **Multi-org support**: Connect to multiple HXA-Connect organizations simultaneously
+- Config auto-migration from single-org to multi-org format (lossless, with backup)
+- `org:<label>|<target>` endpoint encoding for C4 routing (channel stays `hxa-connect`)
+- Per-org WebSocket clients with independent reconnect
+- `--org <label>` flag for CLI and send.js (debug override)
+- Explicit `channel:` endpoint error handling (server API limitation)
+- DESIGN.md documenting multi-org architecture and routing decisions
+- `hooks/pre-upgrade.js` for upgrade safety checks
+
+### Changed
+- `sendToC4` uses `execFile` instead of `exec` (security: no shell injection)
+- CLI `VALUE_FLAGS` parsing fixes for `--reusable`/`--stdin` flags
+- Failed org connections call `client.disconnect()` before cleanup
+- CLI `migrateConfig()`/`resolveOrgs()` errors emit JSON instead of stack traces
+- Config migration uses PID-unique temp files to avoid concurrent write races
+- SKILL.md config section updated from env vars to file-based config reference
+- `Promise.allSettled` for parallel org connections (one failure doesn't block others)
+
+### Fixed
+- Max-retry org connection properly disconnects WS client before removal
+
 ## [1.1.0] - 2026-03-01
 
 ### Added
