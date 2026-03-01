@@ -69,7 +69,7 @@ export function migrateConfig() {
     },
   };
 
-  const tmpPath = CONFIG_PATH + '.tmp';
+  const tmpPath = CONFIG_PATH + `.tmp.${process.pid}`;
   fs.writeFileSync(tmpPath, JSON.stringify(migrated, null, 2) + '\n');
   fs.renameSync(tmpPath, CONFIG_PATH);
   console.log('[hxa-connect] Config migrated successfully');
