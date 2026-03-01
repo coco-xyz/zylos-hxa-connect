@@ -112,7 +112,7 @@ Priority order:
 4. Preserves unknown top-level keys
 
 **Phase 2: global access → per-org access** (detects top-level access keys):
-1. Copies global access fields into each org's `access` (if org has none)
+1. Backfills missing access fields into each org's `access` (per-field merge — existing keys preserved)
 2. Removes global access keys
 
 Both phases use atomic write (PID-unique temp file + rename). Empty/corrupted JSON produces a readable error and exits.
