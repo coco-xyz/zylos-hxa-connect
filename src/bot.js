@@ -112,14 +112,22 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     },
   });
 
-  const isSelf = (id) => org.agentId && id === org.agentId;
+  const isSelf = (id, metadata) => {
+    if (!org.agentId || id !== org.agentId) return false;
+    // Human-authored messages via Web UI should not be treated as self-echo
+    const meta = typeof metadata === 'string'
+      ? (() => { try { return JSON.parse(metadata); } catch { return null; } })()
+      : metadata;
+    if (meta?.provenance?.authored_by === 'human') return false;
+    return true;
+  };
 
   // ─── Event Handlers ───────────────────────────────────
 
   client.on('message', (msg) => {
     const sender = msg.sender_name || 'unknown';
     const content = msg.message?.content || msg.content || '';
-    if (isSelf(msg.message?.sender_id)) return;
+    if (isSelf(msg.message?.sender_id, msg.message?.metadata)) return;
 
     if (!isDmAllowed(org.access, sender)) {
       console.log(`${lp} DM from ${sender} rejected (dmPolicy: ${org.access?.dmPolicy || 'open'})`);
@@ -203,7 +211,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
   client.on('thread_message', (msg) => {
     const message = msg.message || {};
-    if (isSelf(message.sender_id)) return;
+    if (isSelf(message.sender_id, message.metadata)) return;
     const sender = message.sender_name || message.sender_id || 'unknown';
     const content = message.content || '';
     console.log(`${lp} Thread ${msg.thread_id} from ${sender} (buffered): ${content.substring(0, 80)}`);
