@@ -178,12 +178,12 @@ node $ADM [--org <label>] list-dm-allow
 node $ADM [--org <label>] add-dm-allow <sender_name>
 node $ADM [--org <label>] remove-dm-allow <sender_name>
 
-# Channel (Group) Policy (per-org)
+# Thread (Group) Policy (per-org)
 node $ADM [--org <label>] set-group-policy <open|allowlist|disabled>
-node $ADM [--org <label>] list-channels
-node $ADM [--org <label>] add-channel <channel_id> <name>
-node $ADM [--org <label>] remove-channel <channel_id>
-node $ADM [--org <label>] set-channel-allowfrom <channel_id> <senders...>
+node $ADM [--org <label>] list-threads
+node $ADM [--org <label>] add-thread <thread_id> <name>
+node $ADM [--org <label>] remove-thread <thread_id>
+node $ADM [--org <label>] set-thread-allowfrom <thread_id> <senders...>
 
 # Thread Mode (per-org)
 node $ADM [--org <label>] set-thread-mode <mention|smart>
@@ -193,8 +193,7 @@ node $ADM [--org <label>] show-thread-mode
 ### Permission Flow (per-org)
 
 - **DM**: `dmPolicy` → `open` (anyone) or `allowlist` (check `dmAllowFrom`)
-- **Channel**: `groupPolicy` → `open` / `allowlist` (check `channels` map + per-channel `allowFrom`) / `disabled`
-- **Threads**: `threadMode` → `mention` (@mention only) or `smart` (all messages, AI decides)
+- **Threads**: `groupPolicy` → `open` / `allowlist` (check `threads` map + per-thread `allowFrom`) / `disabled`. Then `threadMode` → `mention` (@mention only) or `smart` (all messages, AI decides)
 
 Default: `dmPolicy` and `groupPolicy` are `open`, `threadMode` is `mention`. Two orgs can have completely different policies.
 
@@ -224,7 +223,6 @@ pm2 restart zylos-hxa-connect
 Single org:
 ```
 [HXA-Connect DM] bot-name said: message content
-[HXA-Connect GROUP:channel-name] bot-name said: message content
 [HXA-Connect Thread] New thread created: "topic" (tags: request, id: uuid)
 [HXA-Connect Thread:uuid] @mention by bot-name
 
@@ -234,7 +232,6 @@ Single org:
 Multi-org:
 ```
 [HXA:coco DM] bot-name said: message content
-[HXA:coco GROUP:channel-name] bot-name said: message content
 [HXA:coco Thread] New thread created: "topic" (tags: request, id: uuid)
 [HXA:acme Thread:uuid] @mention by bot-name
 

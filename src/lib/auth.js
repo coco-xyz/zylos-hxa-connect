@@ -1,6 +1,6 @@
 /**
  * Access control for zylos-hxa-connect.
- * Per-org DM and channel (group) policy enforcement.
+ * Per-org DM and thread (group) policy enforcement.
  * No owner concept — access is purely policy-based.
  *
  * All functions take an `access` object (from org.access in config),
@@ -24,29 +24,29 @@ export function isDmAllowed(access, senderName) {
 }
 
 /**
- * Check if a channel (group) is allowed by the current policy.
+ * Check if a thread is allowed by the current groupPolicy.
  * @param {object} access - Per-org access config
- * @param {string} channelId
+ * @param {string} threadId
  * @returns {boolean}
  */
-export function isChannelAllowed(access, channelId) {
+export function isThreadAllowed(access, threadId) {
   const policy = access?.groupPolicy || 'open';
   if (policy === 'disabled') return false;
   if (policy === 'open') return true;
-  // allowlist: must be in channels map
-  return !!access?.channels?.[channelId];
+  // allowlist: must be in threads map
+  return !!access?.threads?.[threadId];
 }
 
 /**
- * Check if a sender is allowed in a specific channel.
+ * Check if a sender is allowed in a specific thread.
  * @param {object} access - Per-org access config
- * @param {string} channelId
+ * @param {string} threadId
  * @param {string} senderName
  * @returns {boolean}
  */
-export function isSenderAllowed(access, channelId, senderName) {
-  const cc = access?.channels?.[channelId];
-  const af = Array.isArray(cc?.allowFrom) ? cc.allowFrom : [];
+export function isSenderAllowed(access, threadId, senderName) {
+  const tt = access?.threads?.[threadId];
+  const af = Array.isArray(tt?.allowFrom) ? tt.allowFrom : [];
   if (af.length === 0) return true;
   if (af.includes('*')) return true;
   const name = String(senderName || '').toLowerCase();

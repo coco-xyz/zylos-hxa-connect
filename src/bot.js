@@ -3,7 +3,7 @@
  * Connects to HXA-Connect hubs via SDK and bridges messages to C4.
  * Supports multiple orgs simultaneously.
  *
- * Handles: DM, channel messages, threads, artifacts, participant events.
+ * Handles: DM, threads, artifacts, participant events.
  * Uses hxa-connect-sdk for WS (ticket exchange, auto-reconnect, 1012 support).
  */
 
@@ -12,7 +12,7 @@ import { execFile } from 'child_process';
 import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { migrateConfig, resolveOrgs, setupFetchProxy, PROXY_URL } from './env.js';
-import { isDmAllowed, isChannelAllowed, isSenderAllowed } from './lib/auth.js';
+import { isDmAllowed, isThreadAllowed, isSenderAllowed } from './lib/auth.js';
 
 const HOME = process.env.HOME;
 const C4_RECEIVE = path.join(HOME, 'zylos/.claude/skills/comm-bridge/scripts/c4-receive.js');
@@ -78,7 +78,7 @@ const HANDLED_EVENTS = new Set([
   'thread_updated', 'thread_artifact', 'thread_participant',
   'channel_deleted', 'channel_created', 'bot_online', 'bot_offline', 'bot_renamed', 'thread_status_changed',
   'reconnecting', 'reconnected', 'reconnect_failed', 'error', 'close', 'pong',
-]);
+]);  // channel_message/channel_deleted kept to suppress unhandled-event logs during server migration
 
 const MAX_CONNECT_ATTEMPTS = 20;
 
@@ -131,26 +131,8 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     sendToC4(C4_CHANNEL, c4Endpoint(label, sender), formatted);
   });
 
-  client.on('channel_message', (msg) => {
-    const sender = msg.sender_name || 'unknown';
-    const chanId = msg.channel_id || 'unknown';
-    const channelName = msg.channel_name || chanId;
-    const content = msg.message?.content || msg.content || '';
-    if (isSelf(msg.message?.sender_id)) return;
-
-    if (!isChannelAllowed(org.access, chanId)) {
-      console.log(`${lp} Channel ${channelName} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
-      return;
-    }
-    if (!isSenderAllowed(org.access, chanId, sender)) {
-      console.log(`${lp} Sender ${sender} rejected in channel ${channelName}`);
-      return;
-    }
-
-    console.log(`${lp} Channel ${channelName} from ${sender}: ${content.substring(0, 80)}`);
-    const formatted = `[${dp} GROUP:${channelName}] ${sender} said: ${content}`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `channel:${chanId}`), formatted);
-  });
+  // channel_message handler removed — channels are DMs, group channels no longer exist.
+  // groupPolicy now gates thread access (see threadCtx.onMention below).
 
   client.on('thread_created', (msg) => {
     const thread = msg.thread || {};
@@ -191,6 +173,17 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
   threadCtx.onMention(({ threadId, message, snapshot }) => {
     const sender = message.sender_name || message.sender_id || 'unknown';
     const content = message.content || '';
+
+    // groupPolicy gates thread access (threads = group chat)
+    if (!isThreadAllowed(org.access, threadId)) {
+      console.log(`${lp} Thread ${threadId} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
+      return;
+    }
+    if (!isSenderAllowed(org.access, threadId, sender)) {
+      console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
+      return;
+    }
+
     const context = threadCtx.toPromptContext(threadId, 'full');
     const isRealMention = mentionRe.test(extractText(message));
 
@@ -258,10 +251,6 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
     const formatted = `[${dp} Thread:${threadId}] Thread "${topic}" status changed: ${from} -> ${to}${by}`;
     sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), formatted);
-  });
-
-  client.on('channel_deleted', (msg) => {
-    console.log(`${lp} Channel deleted: ${msg.channel_id}`);
   });
 
   client.on('bot_online', (msg) => {

@@ -135,7 +135,9 @@ Map<label, { client, threadCtx, config }>
 
 ## Access Control
 
-Per-org DM and channel (group) access control. No owner concept — purely policy-based. Each org has independent policies under `orgs.<label>.access`.
+Per-org DM and thread (group) access control. No owner concept — purely policy-based. Each org has independent policies under `orgs.<label>.access`.
+
+Channels are DMs (direct messages). Group channels no longer exist — threads are the group chat primitive.
 
 ### Per-Org Access Config
 
@@ -145,7 +147,7 @@ Per-org DM and channel (group) access control. No owner concept — purely polic
     "dmPolicy": "open",
     "dmAllowFrom": [],
     "groupPolicy": "open",
-    "channels": {},
+    "threads": {},
     "threadMode": "mention"
   }
 }
@@ -158,20 +160,22 @@ Per-org DM and channel (group) access control. No owner concept — purely polic
 | `open` (default) | Any bot can DM |
 | `allowlist` | Only bots in `dmAllowFrom` (case-insensitive match on sender name) |
 
-### Channel (Group) Policy
+### Group Policy (Thread Access)
+
+`groupPolicy` controls which threads the bot participates in. Threads are the group chat equivalent.
 
 | Policy | Behavior |
 |--------|----------|
-| `open` (default) | All channels accepted |
-| `allowlist` | Only channels in `channels` map; per-channel `allowFrom` for sender filtering |
-| `disabled` | All channel messages rejected |
+| `open` (default) | All threads accepted |
+| `allowlist` | Only threads in `threads` map; per-thread `allowFrom` for sender filtering |
+| `disabled` | All thread messages rejected |
 
-### Per-Channel Config
+### Per-Thread Config
 
 ```json
 {
-  "channels": {
-    "<channel_id>": {
+  "threads": {
+    "<thread_id>": {
       "name": "general",
       "allowFrom": ["*"],
       "added_at": "2026-03-01T..."
@@ -189,22 +193,21 @@ DM message (org X) → isDmAllowed(orgX.access, senderName)
   open → pass
   allowlist → check dmAllowFrom
 
-Channel message (org X) → isChannelAllowed(orgX.access, channelId)
+Thread message (org X) → isThreadAllowed(orgX.access, threadId)
   disabled → reject
   open → pass
-  allowlist → check channels map
-  → isSenderAllowed(orgX.access, channelId, senderName)
+  allowlist → check threads map
+  → isSenderAllowed(orgX.access, threadId, senderName)
     allowFrom empty or ["*"] → pass
     else → check sender in allowFrom
-
-Thread → threadMode (mention|smart) via SDK ThreadContext
+  → threadMode (mention|smart) controls delivery frequency
 ```
 
 Two orgs can have completely different policies — org A can be open while org B uses allowlist.
 
 ### Thread Mode
 
-Per-org thread response mode, controlling how the bot handles thread messages.
+Per-org thread response mode, controlling how the bot handles thread messages (applied after groupPolicy check).
 
 | Mode | Behavior |
 |------|----------|

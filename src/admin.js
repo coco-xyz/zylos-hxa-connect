@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * zylos-hxa-connect admin CLI
- * Manage per-org DM and channel (group) access control.
+ * Manage per-org DM and thread (group) access control.
  *
  * Usage: node admin.js [--org <label>] <command> [args]
  *
@@ -131,7 +131,7 @@ const commands = {
     }
   },
 
-  // ─── Group/Channel Policy ──────────────────────────────
+  // ─── Group Policy (Thread Access) ──────────────────────
 
   'set-group-policy': (config, label, policy) => {
     const valid = ['open', 'allowlist', 'disabled'];
@@ -147,65 +147,65 @@ const commands = {
     console.log('Run: pm2 restart zylos-hxa-connect');
   },
 
-  'list-channels': (config, label) => {
+  'list-threads': (config, label) => {
     const access = getOrgAccess(config, label);
-    const channels = access.channels || {};
-    const ids = Object.keys(channels);
+    const threads = access.threads || {};
+    const ids = Object.keys(threads);
 
     console.log(`[${label}] Group policy: ${access.groupPolicy || 'open'}`);
     if (ids.length === 0) {
-      console.log(`[${label}] No channels configured`);
+      console.log(`[${label}] No threads configured`);
       return;
     }
 
-    ids.forEach(chanId => {
-      const ch = channels[chanId];
-      const allowFrom = Array.isArray(ch.allowFrom) && ch.allowFrom.length > 0
-        ? ch.allowFrom.join(', ')
+    ids.forEach(threadId => {
+      const th = threads[threadId];
+      const allowFrom = Array.isArray(th.allowFrom) && th.allowFrom.length > 0
+        ? th.allowFrom.join(', ')
         : '*';
-      console.log(`  ${chanId} - ${ch.name || 'channel'}`);
+      console.log(`  ${threadId} - ${th.name || 'thread'}`);
       console.log(`    allowFrom: ${allowFrom}`);
-      console.log(`    added_at: ${ch.added_at || 'unknown'}`);
+      console.log(`    added_at: ${th.added_at || 'unknown'}`);
     });
   },
 
-  'add-channel': (config, label, channelId, name) => {
-    if (!channelId || !name) {
-      console.error('Usage: admin.js add-channel <channel_id> <name>');
+  'add-thread': (config, label, threadId, name) => {
+    if (!threadId || !name) {
+      console.error('Usage: admin.js add-thread <thread_id> <name>');
       process.exit(1);
     }
 
     const access = getOrgAccess(config, label);
-    if (!access.channels) access.channels = {};
-    if (access.channels[channelId]) {
-      console.log(`[${label}] Channel ${channelId} already configured`);
+    if (!access.threads) access.threads = {};
+    if (access.threads[threadId]) {
+      console.log(`[${label}] Thread ${threadId} already configured`);
       return;
     }
 
-    access.channels[channelId] = {
+    access.threads[threadId] = {
       name,
       allowFrom: ['*'],
       added_at: new Date().toISOString(),
     };
     if (!saveConfig(config)) process.exit(1);
-    console.log(`[${label}] Added channel: ${channelId} (${name})`);
+    console.log(`[${label}] Added thread: ${threadId} (${name})`);
     console.log('Run: pm2 restart zylos-hxa-connect');
   },
 
-  'remove-channel': (config, label, channelId) => {
-    if (!channelId) {
-      console.error('Usage: admin.js remove-channel <channel_id>');
+  'remove-thread': (config, label, threadId) => {
+    if (!threadId) {
+      console.error('Usage: admin.js remove-thread <thread_id>');
       process.exit(1);
     }
 
     const access = getOrgAccess(config, label);
-    if (!access.channels?.[channelId]) {
-      console.error(`[${label}] Channel ${channelId} not found`);
+    if (!access.threads?.[threadId]) {
+      console.error(`[${label}] Thread ${threadId} not found`);
       process.exit(1);
     }
-    delete access.channels[channelId];
+    delete access.threads[threadId];
     if (!saveConfig(config)) process.exit(1);
-    console.log(`[${label}] Removed channel: ${channelId}`);
+    console.log(`[${label}] Removed thread: ${threadId}`);
     console.log('Run: pm2 restart zylos-hxa-connect');
   },
 
@@ -234,21 +234,21 @@ const commands = {
     console.log(`[${label}] Thread mode: ${access.threadMode || 'mention'} (default: mention)`);
   },
 
-  'set-channel-allowfrom': (config, label, channelId, ...senders) => {
-    if (!channelId || senders.length === 0) {
-      console.error('Usage: admin.js set-channel-allowfrom <channel_id> <sender_names...>');
+  'set-thread-allowfrom': (config, label, threadId, ...senders) => {
+    if (!threadId || senders.length === 0) {
+      console.error('Usage: admin.js set-thread-allowfrom <thread_id> <sender_names...>');
       process.exit(1);
     }
 
     const access = getOrgAccess(config, label);
-    if (!access.channels?.[channelId]) {
-      console.error(`[${label}] Channel ${channelId} not found`);
+    if (!access.threads?.[threadId]) {
+      console.error(`[${label}] Thread ${threadId} not found`);
       process.exit(1);
     }
 
-    access.channels[channelId].allowFrom = senders;
+    access.threads[threadId].allowFrom = senders;
     if (!saveConfig(config)) process.exit(1);
-    console.log(`[${label}] Set allowFrom for ${channelId}: ${senders.join(', ')}`);
+    console.log(`[${label}] Set allowFrom for ${threadId}: ${senders.join(', ')}`);
     console.log('Run: pm2 restart zylos-hxa-connect');
   },
 
@@ -269,12 +269,12 @@ Commands:
   add-dm-allow <sender_name>                       Add sender to dmAllowFrom
   remove-dm-allow <sender_name>                    Remove sender from dmAllowFrom
 
-  Channel (Group) Access Control (per-org):
-  set-group-policy <open|allowlist|disabled>        Set channel policy
-  list-channels                                     List all configured channels
-  add-channel <channel_id> <name>                   Add channel to allowlist
-  remove-channel <channel_id>                       Remove channel
-  set-channel-allowfrom <channel_id> <senders...>   Set allowed senders (use * for all)
+  Thread (Group) Access Control (per-org):
+  set-group-policy <open|allowlist|disabled>        Set thread access policy
+  list-threads                                      List all configured threads
+  add-thread <thread_id> <name>                     Add thread to allowlist
+  remove-thread <thread_id>                         Remove thread
+  set-thread-allowfrom <thread_id> <senders...>     Set allowed senders (use * for all)
 
   Thread Mode (per-org):
   set-thread-mode <mention|smart>                    Set thread response mode
@@ -284,8 +284,8 @@ Commands:
 
 Permission flow (evaluated per-org):
   DM:      dmPolicy (open|allowlist) + dmAllowFrom
-  Channel: groupPolicy (open|allowlist|disabled) + channels map + per-channel allowFrom
-  Threads: threadMode (mention|smart) — mention = @mention only, smart = all messages delivered
+  Threads: groupPolicy (open|allowlist|disabled) + threads map + per-thread allowFrom
+           threadMode (mention|smart) — mention = @mention only, smart = all messages delivered
 
 After changes, restart: pm2 restart zylos-hxa-connect
 `);
