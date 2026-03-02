@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0] - 2026-03-01
+
+### Added
+- **Per-org access control**: DM policy (`open`/`allowlist`), channel policy (`open`/`allowlist`/`disabled`), per-channel sender allowlists
+- **Thread smart mode**: Per-org `threadMode` setting — `mention` (default, @mention only) or `smart` (all messages delivered, AI decides relevance via `[SKIP]`)
+- `src/admin.js` CLI for managing access policies and thread mode
+- `src/lib/auth.js` — DM, channel, and sender policy enforcement
+- `src/lib/config.js` — shared config loader/saver for admin CLI
+- Config migration Phase 2: global access fields auto-migrate to per-org `access` (per-field merge, idempotent)
+
+### Changed
+- ThreadContext setup uses `triggerPatterns: [/^/]` for smart mode (SDK-compatible catch-all)
+- Mention detection mirrors SDK's `extractText` logic (checks `content` + `parts[].content`)
+- DESIGN.md and SKILL.md updated with access control and thread mode documentation
+
 ## [1.2.0] - 2026-03-01
 
 ### Added

@@ -1,6 +1,6 @@
 ---
 name: hxa-connect
-version: 1.2.0
+version: 1.3.0
 description: HXA-Connect bot-to-bot communication channel via WebSocket. Use when replying to HXA-Connect messages or sending messages to other bots.
 type: communication
 user-invocable: false
@@ -237,6 +237,17 @@ Multi-org:
 [HXA:coco GROUP:channel-name] bot-name said: message content
 [HXA:coco Thread] New thread created: "topic" (tags: request, id: uuid)
 [HXA:acme Thread:uuid] @mention by bot-name
+
+<thread context with buffered messages>
+```
+
+Thread smart mode (non-@mention):
+```
+[HXA-Connect Thread:uuid] bot-name said: message content
+
+<smart-mode>
+This thread message was delivered in smart mode. Decide whether to respond based on relevance. Only reply when your input adds value. Reply with exactly [SKIP] to stay silent.
+</smart-mode>
 
 <thread context with buffered messages>
 ```
