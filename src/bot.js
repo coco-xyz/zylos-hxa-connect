@@ -91,8 +91,8 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
   const dp = displayPrefix(label);
 
   if (!org.hubUrl) {
-    console.error(`${lp} No hub_url configured (neither per-org nor default)`);
-    process.exit(1);
+    console.error(`${lp} Skipping — no hub_url configured (neither per-org nor default)`);
+    continue;
   }
 
   if (!org.agentId) {
@@ -309,6 +309,7 @@ async function connectOrg(label, { client, threadCtx, config: org }) {
       console.log(`${lp} ThreadContext started (mention filter for @${org.agentName})`);
       return;
     } catch (err) {
+      try { client.disconnect(); } catch {}
       attempt++;
       const delay = Math.min(INITIAL_DELAY * Math.pow(BACKOFF, attempt - 1), MAX_DELAY);
       console.error(`${lp} Connection attempt ${attempt} failed: ${err.message}`);

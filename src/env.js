@@ -158,11 +158,14 @@ export function resolveOrgs(config) {
 
   for (const [label, org] of Object.entries(config.orgs)) {
     if (!LABEL_RE.test(label)) {
-      throw new Error(`Invalid org label "${label}" — must match /^[a-z0-9][a-z0-9-]*$/`);
+      console.error(`[hxa-connect] Skipping org "${label}" — invalid label (must match /^[a-z0-9][a-z0-9-]*$/)`);
+      continue;
     }
-    if (!org.org_id) throw new Error(`Org "${label}": org_id is required`);
-    if (!org.agent_token) throw new Error(`Org "${label}": agent_token is required`);
-    if (!org.agent_name) throw new Error(`Org "${label}": agent_name is required`);
+    if (!org.org_id || !org.agent_token || !org.agent_name) {
+      const missing = [!org.org_id && 'org_id', !org.agent_token && 'agent_token', !org.agent_name && 'agent_name'].filter(Boolean);
+      console.error(`[hxa-connect] Skipping org "${label}" — missing: ${missing.join(', ')}`);
+      continue;
+    }
 
     orgs[label] = {
       orgId: org.org_id,
