@@ -178,8 +178,20 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     return parts.join(' ');
   }
 
+  // Display-friendly sender name (human provenance aware)
+  function msgSender(msg) {
+    const botName = msg.sender_name || msg.sender_id || 'unknown';
+    const meta = typeof msg.metadata === 'string'
+      ? (() => { try { return JSON.parse(msg.metadata); } catch { return null; } })()
+      : msg.metadata;
+    if (meta?.provenance?.authored_by === 'human' && meta.provenance.owner_name) {
+      return `${meta.provenance.owner_name} (via ${botName})`;
+    }
+    return botName;
+  }
+
   threadCtx.onMention(({ threadId, message, snapshot }) => {
-    const sender = message.sender_name || message.sender_id || 'unknown';
+    const sender = msgSender(message);
     const content = message.content || '';
 
     // groupPolicy gates thread access (threads = group chat)
@@ -192,21 +204,28 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       return;
     }
 
-    const context = threadCtx.toPromptContext(threadId, 'full');
     const isRealMention = mentionRe.test(extractText(message));
 
-    if (isRealMention || threadMode !== 'smart') {
-      // Normal @mention delivery
-      console.log(`${lp} Thread ${threadId} @mention by ${sender} (${snapshot.bufferedCount} buffered)`);
-      const formatted = `[${dp} Thread:${threadId}] @mention by ${sender}\n\n${context}`;
-      sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), formatted);
-    } else {
-      // Smart mode: no real @mention — deliver with hint
-      console.log(`${lp} Thread ${threadId} smart delivery from ${sender} (${snapshot.bufferedCount} buffered)`);
-      const hint = '<smart-mode>\nThis thread message was delivered in smart mode. Decide whether to respond based on relevance. Only reply when your input adds value. Reply with exactly [SKIP] to stay silent.\n</smart-mode>';
-      const formatted = `[${dp} Thread:${threadId}] ${sender} said: ${content}\n\n${hint}\n\n${context}`;
-      sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), formatted);
+    // Build C4 message with XML tags (consistent with Lark/TG format)
+    const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
+
+    // Thread context: previous messages (excluding trigger)
+    const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
+    if (contextMsgs.length > 0) {
+      const lines = contextMsgs.map(m => `[${msgSender(m)}]: ${m.content || ''}`);
+      parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
     }
+
+    // Smart mode hint
+    if (!isRealMention && threadMode === 'smart') {
+      parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
+    }
+
+    // Current message
+    parts.push(`<current-message>\n${content}\n</current-message>`);
+
+    console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
+    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), parts.join(''));
   });
 
   client.on('thread_message', (msg) => {
