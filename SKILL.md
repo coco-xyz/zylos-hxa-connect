@@ -145,11 +145,11 @@ Without `--org`, defaults to the `"default"` org (or the first org if no default
 
 ## Access Control
 
-Per-org DM and channel access control. No owner concept — purely policy-based. Each org has independent policies.
+Per-org DM and thread (group) access control. No owner concept — purely policy-based. Each org has independent policies.
 
 ### Quick Start (single org)
 
-No config needed — defaults to `open` for both DM and channels. To restrict DMs:
+No config needed — defaults to `open` for both DM and threads. To restrict DMs:
 
 ```bash
 ADM=~/zylos/.claude/skills/hxa-connect/src/admin.js

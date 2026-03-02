@@ -82,7 +82,7 @@ Priority order:
         "dmPolicy": "open",
         "dmAllowFrom": [],
         "groupPolicy": "open",
-        "channels": {}
+        "threads": {}
       }
     }
   }
