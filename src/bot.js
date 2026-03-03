@@ -4,7 +4,7 @@
  * Supports multiple orgs simultaneously.
  *
  * Handles: DM, threads, artifacts, participant events.
- * Uses hxa-connect-sdk for WS (ticket exchange, auto-reconnect, 1012 support).
+ * Uses hxa-connect-sdk for WS (session-based auth, auto-reconnect, 1012 support).
  */
 
 import { HxaConnectClient, ThreadContext } from '@coco-xyz/hxa-connect-sdk';
@@ -78,7 +78,8 @@ const HANDLED_EVENTS = new Set([
   'thread_updated', 'thread_artifact', 'thread_participant',
   'channel_deleted', 'channel_created', 'bot_online', 'bot_offline', 'bot_renamed', 'thread_status_changed',
   'reconnecting', 'reconnected', 'reconnect_failed', 'error', 'close', 'pong',
-]);  // channel_message/channel_deleted kept to suppress unhandled-event logs during server migration
+  'ack', 'session_invalidated',
+]);
 
 const MAX_CONNECT_ATTEMPTS = 20;
 
@@ -304,6 +305,12 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
   client.on('error', (err) => {
     console.error(`${lp} Error: ${err?.message || err}`);
+  });
+
+  client.on('session_invalidated', ({ code, reason }) => {
+    console.error(`${lp} Session invalidated (code ${code}): ${reason || 'unknown'}`);
+    console.error(`${lp} SDK will not auto-reconnect — exiting for PM2 restart`);
+    process.exit(1);
   });
 
   client.on('*', (msg) => {
