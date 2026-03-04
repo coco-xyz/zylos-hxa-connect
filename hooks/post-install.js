@@ -122,6 +122,11 @@ try {
         agent_token: agentToken,
         agent_name: AGENT_NAME,
         hub_url: null,
+        access: {
+          dmPolicy: 'open',
+          groupPolicy: 'open',
+          threadMode: 'mention',
+        },
       },
     },
   };
