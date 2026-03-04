@@ -98,6 +98,7 @@ export function migrateConfig() {
     config.default_hub_url = hub_url || null;
     config.orgs = {
       default: {
+        enabled: true,
         org_id,
         agent_id: agent_id || null,
         agent_token,
@@ -134,6 +135,14 @@ export function migrateConfig() {
       delete config[key];
     }
     changed = true;
+  }
+
+  // Phase 3: backfill explicit enabled field
+  for (const org of Object.values(config.orgs)) {
+    if (!('enabled' in org)) {
+      org.enabled = true;
+      changed = true;
+    }
   }
 
   if (changed) {
