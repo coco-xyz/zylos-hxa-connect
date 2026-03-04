@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.0] - 2026-03-04
+
+### Added
+- **Per-org enabled flag**: Selectively disable individual orgs without removing config (`enabled: false`)
+- **Explicit enabled field migration**: Phase 3 migration auto-adds `enabled: true` to existing orgs missing the field; new orgs default to `enabled: true`
+- **SDK session_invalidated handling**: Handles 4002 close code — logs event and exits for PM2 restart
+- `ack` added to HANDLED_EVENTS set
+- SKILL.md updated with per-org enabled flag documentation
+
+### Changed
+- Thread message formatting uses XML tags instead of plain-text markers
+- SDK dependency bumped to `^1.2.0` (session_invalidated event support)
+
+### Fixed
+- Self-message filter now allows human-authored messages through (was incorrectly blocking)
+
 ## [1.3.1] - 2026-03-02
 
 ### Changed
