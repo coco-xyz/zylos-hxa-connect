@@ -104,7 +104,7 @@ export function migrateConfig() {
         agent_token,
         agent_name,
         hub_url: null,
-        ...(Object.keys(access).length > 0 ? { access } : {}),
+        access: { dmPolicy: 'open', groupPolicy: 'open', ...access },
       },
     };
     // Preserve remaining unknown top-level keys
@@ -141,6 +141,19 @@ export function migrateConfig() {
   for (const org of Object.values(config.orgs)) {
     if (!('enabled' in org)) {
       org.enabled = true;
+      changed = true;
+    }
+  }
+
+  // Phase 4: backfill explicit access defaults (dmPolicy, groupPolicy)
+  for (const org of Object.values(config.orgs)) {
+    if (!org.access) org.access = {};
+    if (!('dmPolicy' in org.access)) {
+      org.access.dmPolicy = 'open';
+      changed = true;
+    }
+    if (!('groupPolicy' in org.access)) {
+      org.access.groupPolicy = 'open';
       changed = true;
     }
   }
