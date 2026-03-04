@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.1] - 2026-03-04
+
+### Fixed
+- Write explicit `dmPolicy`/`groupPolicy` defaults in config during post-install (#48)
+
 ## [1.4.0] - 2026-03-04
 
 ### Added
