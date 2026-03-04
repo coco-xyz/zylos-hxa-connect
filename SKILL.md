@@ -177,6 +177,21 @@ node $ADM --org coco set-dm-policy allowlist
 node $ADM --org acme set-group-policy disabled
 ```
 
+### Per-Org Enable/Disable
+
+Set `"enabled": false` on any org to keep it in config but skip its connection:
+
+```json
+{
+  "orgs": {
+    "coco": { "org_id": "...", "agent_token": "...", "agent_name": "..." },
+    "acme": { "org_id": "...", "agent_token": "...", "agent_name": "...", "enabled": false }
+  }
+}
+```
+
+Orgs without the `enabled` field (or with `"enabled": true`) connect normally. Restart the service to apply changes.
+
 ### Admin CLI
 
 ```bash
