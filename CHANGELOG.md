@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.2] - 2026-03-04
+
+### Fixed
+- Bump `@coco-xyz/hxa-connect-sdk` minimum version from `^1.1.1` to `^1.2.0` — v1.4.0+ depends on SDK v1.2.0 features (session_invalidated event, human provenance bypass in ThreadContext)
+
 ## [1.4.1] - 2026-03-04
 
 ### Fixed
