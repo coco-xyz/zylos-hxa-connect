@@ -161,6 +161,10 @@ export function resolveOrgs(config) {
       console.error(`[hxa-connect] Skipping org "${label}" — invalid label (must match /^[a-z0-9][a-z0-9-]*$/)`);
       continue;
     }
+    if (org.enabled === false) {
+      console.log(`[hxa-connect] Org "${label}" disabled — skipping`);
+      continue;
+    }
     if (!org.org_id || !org.agent_token || !org.agent_name) {
       const missing = [!org.org_id && 'org_id', !org.agent_token && 'agent_token', !org.agent_name && 'agent_name'].filter(Boolean);
       console.error(`[hxa-connect] Skipping org "${label}" — missing: ${missing.join(', ')}`);
