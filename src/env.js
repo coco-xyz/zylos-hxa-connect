@@ -104,7 +104,7 @@ export function migrateConfig() {
         agent_token,
         agent_name,
         hub_url: null,
-        access: { dmPolicy: 'open', groupPolicy: 'open', ...access },
+        access: { dmPolicy: 'open', groupPolicy: 'open', threadMode: 'mention', ...access },
       },
     };
     // Preserve remaining unknown top-level keys
@@ -154,6 +154,10 @@ export function migrateConfig() {
     }
     if (!('groupPolicy' in org.access)) {
       org.access.groupPolicy = 'open';
+      changed = true;
+    }
+    if (!('threadMode' in org.access)) {
+      org.access.threadMode = 'mention';
       changed = true;
     }
   }

@@ -125,6 +125,7 @@ try {
         access: {
           dmPolicy: 'open',
           groupPolicy: 'open',
+          threadMode: 'mention',
         },
       },
     },
