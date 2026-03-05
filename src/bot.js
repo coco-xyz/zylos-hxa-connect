@@ -226,7 +226,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     if (message.reply_to_message) {
       const reply = message.reply_to_message;
       const replySender = (reply.sender_name || reply.sender_id || 'unknown').replace(/</g, '&lt;');
-      const replyContent = (reply.content || '').replace(/<\/replying-to>/gi, '&lt;/replying-to>');
+      const replyContent = (reply.content || '').replace(/<\/replying-to\s*>/gi, '&lt;/replying-to>');
       parts.push(`<replying-to>\n[${replySender}]: ${replyContent}\n</replying-to>\n\n`);
     }
 

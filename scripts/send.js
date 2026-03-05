@@ -91,6 +91,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 async function sendAsThread(threadId) {
   const opts = replyToId ? { reply_to: replyToId } : undefined;
+  let usedReplyTo = !!replyToId;
   try {
     await client.sendThreadMessage(threadId, message, opts);
   } catch (err) {
@@ -98,11 +99,12 @@ async function sendAsThread(threadId) {
     if (replyToId && (err?.status === 400 || err?.body?.code === 'NOT_FOUND')) {
       console.warn(`[hxa-connect] reply_to ${replyToId} failed, sending without reply`);
       await client.sendThreadMessage(threadId, message);
+      usedReplyTo = false;
     } else {
       throw err;
     }
   }
-  console.log(`Sent to thread ${threadId}${replyToId ? ` (reply_to: ${replyToId})` : ''}: ${message.substring(0, 50)}...`);
+  console.log(`Sent to thread ${threadId}${usedReplyTo ? ` (reply_to: ${replyToId})` : ''}: ${message.substring(0, 50)}...`);
 }
 
 async function sendAsDM(to) {
