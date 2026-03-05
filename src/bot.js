@@ -226,15 +226,17 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     if (message.reply_to_message) {
       const reply = message.reply_to_message;
       const replySender = (reply.sender_name || reply.sender_id || 'unknown').replace(/</g, '&lt;');
-      const replyContent = (reply.content || '').replace(/<\/replying-to>/gi, '&lt;/replying-to>');
+      const replyContent = (reply.content || '').replace(/<\/replying-to\s*>/gi, '&lt;/replying-to>');
       parts.push(`<replying-to>\n[${replySender}]: ${replyContent}\n</replying-to>\n\n`);
     }
 
     // Current message
     parts.push(`<current-message>\n${content}\n</current-message>`);
 
+    // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
+    const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
     console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), parts.join(''));
+    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
   });
 
   client.on('thread_message', (msg) => {
