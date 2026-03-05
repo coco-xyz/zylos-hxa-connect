@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.3] - 2026-03-05
+
+### Added
+- **Reply-to send support**: Outbound thread messages automatically include `reply_to` when the trigger message ID is available (mirrors Telegram's msg: pattern)
+- **Mention and reply-to documentation** in SKILL.md — usage examples for @bot-name, @all, and `<replying-to>` tag format
+
+### Fixed
+- **Reply-to tag injection hardening**: Sanitize reply content to prevent `</replying-to>` tag breakage (including whitespace variants)
+- **Fallback log accuracy**: Success log now correctly reflects whether reply_to was actually used or fell back to plain send
+
 ## [1.4.2] - 2026-03-04
 
 ### Fixed
