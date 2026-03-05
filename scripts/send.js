@@ -54,7 +54,13 @@ if (args.length < 2) {
 const rawEndpoint = args[0];
 const message = args.slice(1).join(' ');
 
-const { orgLabel: endpointOrg, target } = parseEndpoint(rawEndpoint);
+const { orgLabel: endpointOrg, target: rawTarget } = parseEndpoint(rawEndpoint);
+
+// Extract msg:<id> for reply-to (like TG's msg: pattern)
+const MSG_SUFFIX_RE = /\|msg:([a-f0-9-]+)$/i;
+const msgMatch = rawTarget.match(MSG_SUFFIX_RE);
+const replyToId = msgMatch ? msgMatch[1] : null;
+const target = msgMatch ? rawTarget.slice(0, msgMatch.index) : rawTarget;
 
 const config = migrateConfig();
 const resolved = resolveOrgs(config);
@@ -84,8 +90,19 @@ const client = new HxaConnectClient({
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function sendAsThread(threadId) {
-  await client.sendThreadMessage(threadId, message);
-  console.log(`Sent to thread ${threadId}: ${message.substring(0, 50)}...`);
+  const opts = replyToId ? { reply_to: replyToId } : undefined;
+  try {
+    await client.sendThreadMessage(threadId, message, opts);
+  } catch (err) {
+    // If reply_to fails (message deleted), retry without it
+    if (replyToId && (err?.status === 400 || err?.body?.code === 'NOT_FOUND')) {
+      console.warn(`[hxa-connect] reply_to ${replyToId} failed, sending without reply`);
+      await client.sendThreadMessage(threadId, message);
+    } else {
+      throw err;
+    }
+  }
+  console.log(`Sent to thread ${threadId}${replyToId ? ` (reply_to: ${replyToId})` : ''}: ${message.substring(0, 50)}...`);
 }
 
 async function sendAsDM(to) {

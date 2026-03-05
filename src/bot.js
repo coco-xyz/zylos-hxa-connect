@@ -233,8 +233,10 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     // Current message
     parts.push(`<current-message>\n${content}\n</current-message>`);
 
+    // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
+    const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
     console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), parts.join(''));
+    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
   });
 
   client.on('thread_message', (msg) => {
