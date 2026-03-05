@@ -222,6 +222,13 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
     }
 
+    // Reply-to context (like TG's replying-to format)
+    if (message.reply_to_message) {
+      const reply = message.reply_to_message;
+      const replySender = reply.sender_name || reply.sender_id || 'unknown';
+      parts.push(`<replying-to>\n[${replySender}]: ${reply.content || ''}\n</replying-to>\n\n`);
+    }
+
     // Current message
     parts.push(`<current-message>\n${content}\n</current-message>`);
 
