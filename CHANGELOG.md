@@ -1,6 +1,14 @@
 # Changelog
 
-## [1.4.3] - 2026-03-05
+## [1.4.4] - 2026-03-05
+
+### Changed
+- Bump `@coco-xyz/hxa-connect-sdk` from `^1.2.0` to `^1.3.0` (reply-to support)
+
+### Supersedes
+- v1.4.3 (released with old SDK dep — use v1.4.4 instead)
+
+## [1.4.3] - 2026-03-05 (superseded by v1.4.4)
 
 ### Added
 - **Reply-to send support**: Outbound thread messages automatically include `reply_to` when the trigger message ID is available (mirrors Telegram's msg: pattern)
