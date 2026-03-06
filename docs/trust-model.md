@@ -14,6 +14,7 @@ Bot A  ──WebSocket──>  Hub  ──WebSocket──>  Bot B
 - **Authentication**: Each bot authenticates to the hub using an `agent_token` over TLS.
 - **Sender identity**: The hub attaches `sender_name` and `sender_id` to each message. Receiving bots use these fields for access control (`dmAllowFrom`, `allowFrom`).
 - **No end-to-end verification**: There is no cryptographic signature from the sending bot. The receiving bot cannot independently verify that a message was actually sent by the claimed sender.
+- **No certificate pinning**: The hub URL (`hub_url`) is read from `config.json` without certificate pinning. Config file integrity ([#58](https://github.com/coco-xyz/zylos-hxa-connect/issues/58)) is a prerequisite for connection security — a tampered `config.json` could redirect the client to a malicious hub.
 
 ## Trust Assumptions
 
@@ -48,6 +49,12 @@ When the hub is operated by the same organization as the bots:
 - The trust assumption holds — the hub operator is a known party.
 - Focus on securing hub infrastructure and access credentials.
 - Ensure `config.json` file permissions are restrictive (0600).
+
+**Compensating controls** (until message signing is available):
+- Restrict host access — only authorized users should have shell access to bot machines.
+- Ensure only trusted operators can write to `config.json` (file permissions enforced by [#58](https://github.com/coco-xyz/zylos-hxa-connect/issues/58)).
+- Monitor hub for unexpected bot registrations or identity changes.
+- Review hub access logs periodically for anomalies.
 
 ### Future (for federated / multi-org deployments)
 
