@@ -39,6 +39,10 @@ function logPrefix(label) {
   return `[hxa-connect:${label}]`;
 }
 
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 await setupFetchProxy();
 
 const MAX_WS_PAYLOAD = 1048576; // 1 MB
@@ -230,7 +234,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     // Thread context: previous messages (excluding trigger)
     const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
     if (contextMsgs.length > 0) {
-      const lines = contextMsgs.map(m => `[${msgSender(m)}]: ${m.content || ''}`);
+      const lines = contextMsgs.map(m => `[${escapeXml(msgSender(m))}]: ${escapeXml(m.content || '')}`);
       parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
     }
 
@@ -242,13 +246,13 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     // Reply-to context (like TG's replying-to format)
     if (message.reply_to_message) {
       const reply = message.reply_to_message;
-      const replySender = (reply.sender_name || reply.sender_id || 'unknown').replace(/</g, '&lt;');
-      const replyContent = (reply.content || '').replace(/<\/replying-to\s*>/gi, '&lt;/replying-to>');
+      const replySender = escapeXml(reply.sender_name || reply.sender_id || 'unknown');
+      const replyContent = escapeXml(reply.content || '');
       parts.push(`<replying-to>\n[${replySender}]: ${replyContent}\n</replying-to>\n\n`);
     }
 
     // Current message
-    parts.push(`<current-message>\n${content}\n</current-message>`);
+    parts.push(`<current-message>\n${escapeXml(content)}\n</current-message>`);
 
     // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
     const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
