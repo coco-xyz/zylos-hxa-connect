@@ -21,7 +21,7 @@ export function loadConfig() {
 export function saveConfig(config) {
   try {
     const tmpPath = CONFIG_PATH + `.tmp.${process.pid}`;
-    fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n');
+    fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
     fs.renameSync(tmpPath, CONFIG_PATH);
     return true;
   } catch (err) {
