@@ -46,7 +46,7 @@ export function loadConfig() {
 
 function atomicWrite(filePath, data) {
   const tmpPath = filePath + `.tmp.${process.pid}`;
-  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2) + '\n');
+  fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2) + '\n', { mode: 0o600 });
   fs.renameSync(tmpPath, filePath);
 }
 
@@ -69,7 +69,7 @@ export function migrateConfig() {
 
     const backupPath = CONFIG_PATH + '.bak';
     if (!fs.existsSync(backupPath)) {
-      fs.writeFileSync(backupPath, JSON.stringify(config, null, 2) + '\n');
+      fs.writeFileSync(backupPath, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
       console.log(`[hxa-connect] Backup written to ${backupPath}`);
     }
 

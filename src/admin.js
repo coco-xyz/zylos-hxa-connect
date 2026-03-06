@@ -62,7 +62,15 @@ function getOrgAccess(config, label) {
 
 const commands = {
   show: (config) => {
-    console.log(JSON.stringify(config, null, 2));
+    const redacted = JSON.parse(JSON.stringify(config));
+    if (redacted.orgs) {
+      for (const org of Object.values(redacted.orgs)) {
+        if (org.agent_token) {
+          org.agent_token = org.agent_token.slice(0, 4) + '***';
+        }
+      }
+    }
+    console.log(JSON.stringify(redacted, null, 2));
   },
 
   // ─── DM Policy ─────────────────────────────────────────

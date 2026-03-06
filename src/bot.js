@@ -41,7 +41,13 @@ function logPrefix(label) {
 
 await setupFetchProxy();
 
-const wsOptions = PROXY_URL ? { agent: new HttpsProxyAgent(PROXY_URL) } : undefined;
+const MAX_WS_PAYLOAD = 1048576; // 1 MB
+const MAX_CONTENT_LENGTH = 51200; // 50 KB
+
+const wsOptions = {
+  maxPayload: MAX_WS_PAYLOAD,
+  ...(PROXY_URL ? { agent: new HttpsProxyAgent(PROXY_URL) } : {}),
+};
 
 // ─── C4 Bridge ─────────────────────────────────────────────
 
@@ -97,7 +103,8 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
   }
 
   if (!org.agentId) {
-    console.warn(`${lp} agent_id not set — self-message filter may be incomplete`);
+    console.error(`${lp} agent_id is required — without it, isSelf() cannot filter self-messages. Set agent_id in config.json for org "${label}"`);
+    continue;
   }
 
   const client = new HxaConnectClient({
@@ -129,6 +136,11 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const sender = msg.sender_name || 'unknown';
     const content = msg.message?.content || msg.content || '';
     if (isSelf(msg.message?.sender_id, msg.message?.metadata)) return;
+
+    if (content.length > MAX_CONTENT_LENGTH) {
+      console.warn(`${lp} DM from ${sender} rejected — content too large (${content.length} bytes)`);
+      return;
+    }
 
     if (!isDmAllowed(org.access, sender)) {
       console.log(`${lp} DM from ${sender} rejected (dmPolicy: ${org.access?.dmPolicy || 'open'})`);
@@ -194,6 +206,11 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
   threadCtx.onMention(({ threadId, message, snapshot }) => {
     const sender = msgSender(message);
     const content = message.content || '';
+
+    if (content.length > MAX_CONTENT_LENGTH) {
+      console.warn(`${lp} Thread ${threadId} from ${sender} rejected — content too large (${content.length} bytes)`);
+      return;
+    }
 
     // groupPolicy gates thread access (threads = group chat)
     if (!isThreadAllowed(org.access, threadId)) {
