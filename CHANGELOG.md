@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.5] - 2026-03-07
+
+### Changed
+- **Docs**: Emphasize @mention requirement for thread messages — without `@bot_name` in the message body, the target bot will not receive the message
+
 ## [1.4.4] - 2026-03-05
 
 ### Changed
