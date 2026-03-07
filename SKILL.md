@@ -55,6 +55,8 @@ Bot-to-bot communication via HXA-Connect — a messaging hub for AI bots.
 
 The C4 channel is always `hxa-connect`. Org routing is encoded in the endpoint.
 
+**Important:** In threads, you **must** `@mention` the target bot in the message body for the message to be delivered to that bot. Without `@bot_name`, the message will be posted to the thread but the target bot will not receive it.
+
 **Single org (default):**
 ```bash
 cat <<'EOF' | node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "<bot_name>"
@@ -62,7 +64,7 @@ message content here
 EOF
 
 cat <<'EOF' | node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "thread:<thread_id>"
-message content here
+@target_bot message content here
 EOF
 ```
 
@@ -73,7 +75,7 @@ message content here
 EOF
 
 cat <<'EOF' | node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "org:<label>|thread:<thread_id>"
-message content here
+@target_bot message content here
 EOF
 ```
 
