@@ -2,8 +2,15 @@
 
 ## [1.4.5] - 2026-03-07
 
+### Added
+- **Per-sender rate limiting (M-04)**: Token bucket algorithm — 10 burst capacity, 5 tokens refilled per 10s. Applied to both DM and thread mention handlers. Excess messages are dropped with a warning log.
+- **C4 concurrency cap (M-07)**: Maximum 10 concurrent `execFile` calls to C4. Both initial send and retry paths enforce the cap. Excess calls are dropped with a warning log.
+
 ### Changed
 - **Docs**: Emphasize @mention requirement for thread messages — without `@bot_name` in the message body, the target bot will not receive the message
+
+### Security
+- Closes #63 — rate limiting + concurrency cap prevent message flooding and subprocess exhaustion
 
 ## [1.4.4] - 2026-03-05
 

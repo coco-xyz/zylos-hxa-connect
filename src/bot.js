@@ -48,6 +48,51 @@ await setupFetchProxy();
 const MAX_WS_PAYLOAD = 1048576; // 1 MB
 const MAX_CONTENT_LENGTH = 51200; // 50 KB
 
+// ─── Rate Limiting (M-04) ────────────────────────────────
+
+class TokenBucket {
+  constructor(capacity = 10, refillRate = 5, refillIntervalMs = 10000) {
+    this.capacity = capacity;
+    this.tokens = capacity;
+    this.refillRate = refillRate;
+    this.refillIntervalMs = refillIntervalMs;
+    this.lastRefill = Date.now();
+  }
+
+  consume() {
+    this._refill();
+    if (this.tokens < 1) return false;
+    this.tokens -= 1;
+    return true;
+  }
+
+  _refill() {
+    const now = Date.now();
+    const elapsed = now - this.lastRefill;
+    if (elapsed < this.refillIntervalMs) return;
+    const intervals = Math.floor(elapsed / this.refillIntervalMs);
+    this.tokens = Math.min(this.capacity, this.tokens + intervals * this.refillRate);
+    this.lastRefill += intervals * this.refillIntervalMs;
+  }
+}
+
+// Per-sender rate limiters (keyed by org:senderId)
+const rateLimiters = new Map();
+
+function getRateLimiter(key) {
+  let bucket = rateLimiters.get(key);
+  if (!bucket) {
+    bucket = new TokenBucket(10, 5, 10000);
+    rateLimiters.set(key, bucket);
+  }
+  return bucket;
+}
+
+// ─── C4 Concurrency Cap (M-07) ──────────────────────────
+
+const MAX_CONCURRENT_C4 = 10;
+let _activeC4Calls = 0;
+
 const wsOptions = {
   maxPayload: MAX_WS_PAYLOAD,
   ...(PROXY_URL ? { agent: new HttpsProxyAgent(PROXY_URL) } : {}),
@@ -57,9 +102,15 @@ const wsOptions = {
 
 function sendToC4(channel, endpoint, content) {
   if (!content) return;
+  if (_activeC4Calls >= MAX_CONCURRENT_C4) {
+    console.warn(`[hxa-connect] C4 concurrency cap reached (${MAX_CONCURRENT_C4}), dropping message`);
+    return;
+  }
+  _activeC4Calls++;
   const c4Args = [C4_RECEIVE, '--channel', channel, '--endpoint', endpoint, '--json', '--content', content];
 
   execFile('node', c4Args, { encoding: 'utf8' }, (error, stdout) => {
+    _activeC4Calls--;
     if (!error) {
       console.log(`[hxa-connect] -> C4: ${content.substring(0, 80)}...`);
       return;
@@ -73,7 +124,13 @@ function sendToC4(channel, endpoint, content) {
     } catch {}
     console.warn(`[hxa-connect] C4 send failed, retrying: ${error.message}`);
     setTimeout(() => {
+      if (_activeC4Calls >= MAX_CONCURRENT_C4) {
+        console.warn(`[hxa-connect] C4 concurrency cap reached on retry, dropping`);
+        return;
+      }
+      _activeC4Calls++;
       execFile('node', c4Args, { encoding: 'utf8' }, (retryErr) => {
+        _activeC4Calls--;
         if (retryErr) console.error(`[hxa-connect] C4 retry failed: ${retryErr.message}`);
         else console.log(`[hxa-connect] -> C4 (retry): ${content.substring(0, 80)}...`);
       });
@@ -151,6 +208,12 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       return;
     }
 
+    const rlKey = `${label}:dm:${msg.message?.sender_id || sender}`;
+    if (!getRateLimiter(rlKey).consume()) {
+      console.warn(`${lp} DM from ${sender} rate-limited, dropping`);
+      return;
+    }
+
     console.log(`${lp} DM from ${sender}: ${content.substring(0, 80)}`);
     const formatted = `[${dp} DM] ${sender} said: ${content}`;
     sendToC4(C4_CHANNEL, c4Endpoint(label, sender), formatted);
@@ -223,6 +286,12 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     }
     if (!isSenderAllowed(org.access, threadId, sender)) {
       console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
+      return;
+    }
+
+    const rlKey = `${label}:thread:${message.sender_id || sender}`;
+    if (!getRateLimiter(rlKey).consume()) {
+      console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
       return;
     }
 
