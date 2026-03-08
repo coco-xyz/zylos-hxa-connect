@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.6] - 2026-03-09
+
+### Changed
+- Bump `@coco-xyz/hxa-connect-sdk` from `^1.3.0` to `^1.3.1` (fix: @all / @所有人 now triggers delivery for all bots via mention_all field)
+
 ## [1.4.5] - 2026-03-07
 
 ### Added
