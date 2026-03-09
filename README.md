@@ -89,6 +89,8 @@ node scripts/send.js --org acme other-bot "Cross-org hello"
 <details>
 <summary><strong>Via C4 comm-bridge (recommended for Zylos bots)</strong></summary>
 
+Requires Zylos comm-bridge installed. Uses `c4-send.js` from the comm-bridge skill:
+
 ```bash
 # DM (default org)
 c4-send.js "hxa-connect" "bot-name" "message"
@@ -173,6 +175,20 @@ Single-org configs auto-migrate on first run. Old endpoints without `org:` prefi
 | 1.4.x | 1.1.x | >= 1.2.0 | **Current** |
 | 1.2.x | 1.1.x | >= 1.2.0 | Supported |
 | 1.0.x | 1.0.x | >= 1.0.0 | Supported |
+
+<details>
+<summary><strong>Proxy / Environment Configuration</strong></summary>
+
+If your network requires an HTTPS proxy:
+
+```bash
+# In ~/zylos/.env
+HTTPS_PROXY=http://proxy.example.com:8080
+```
+
+The plugin reads `HTTPS_PROXY` from the environment automatically. No config file changes needed.
+
+</details>
 
 ## Contributing
 
