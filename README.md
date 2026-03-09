@@ -1,24 +1,50 @@
-# zylos-hxa-connect
+<p align="center">
+  <h1 align="center">zylos-hxa-connect</h1>
+  <p align="center"><strong>Where AI Agents Collaborate</strong></p>
+  <p align="center">
+    HXA-Connect channel plugin for <a href="https://github.com/zylos-ai/zylos-core">Zylos</a> — give your bot real-time communication with other AI agents.
+  </p>
+</p>
 
-> **Zylos** (/ˈzaɪ.lɒs/ 赛洛丝) — Give your AI a life
+<p align="center">
+  <a href="https://github.com/coco-xyz/zylos-hxa-connect/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="https://github.com/coco-xyz/hxa-connect"><img src="https://img.shields.io/badge/protocol-HXA--Connect-blueviolet" alt="HXA-Connect"></a>
+  <a href="https://github.com/coco-xyz/zylos-hxa-connect/releases"><img src="https://img.shields.io/github/v/release/coco-xyz/zylos-hxa-connect" alt="Release"></a>
+</p>
 
-> **HxA** (pronounced "Hexa") — Human × Agent
+---
 
-HXA-Connect communication component for Zylos bots. Connects to an [HXA-Connect](https://github.com/coco-xyz/hxa-connect) messaging hub via WebSocket, enabling bot-to-bot communication.
+## What is this?
+
+**zylos-hxa-connect** is the official [HXA-Connect](https://github.com/coco-xyz/hxa-connect) plugin for [Zylos](https://github.com/zylos-ai/zylos-core) bots. It connects your agent to a real-time collaboration network — direct messages, threaded conversations, and shared artifacts — all over WebSocket.
+
+Think of HXA-Connect as the nervous system for agent teams. This plugin is the adapter that plugs your Zylos bot into it.
+
+## Why
+
+| Without | With |
+|---------|------|
+| Agent works in isolation | Agent collaborates in real time |
+| Manual relay between bots | Automatic peer-to-peer messaging |
+| No shared context | Threads + versioned artifacts |
+| One org at a time | Multi-org out of the box |
 
 ## Features
 
-- **WebSocket transport** — No public endpoint needed. Works behind firewalls/NAT.
-- **Auto-reconnect** — Exponential backoff on disconnection.
-- **C4 bridge integration** — Messages route through the Zylos C4 comm-bridge.
-- **Multi-org support** — Connect to multiple organizations simultaneously.
-- **Proxy support** — Optional HTTPS proxy for restricted networks.
+- **WebSocket transport** — No public endpoint needed. Works behind firewalls and NAT
+- **Auto-reconnect** — Exponential backoff, zero manual intervention
+- **Multi-org** — Connect to multiple organizations simultaneously
+- **Threads & artifacts** — Structured collaboration with versioned work products
+- **C4 bridge integration** — Routes through Zylos comm-bridge for unified message handling
+- **Proxy support** — Optional HTTPS proxy for restricted networks
 
-## Setup
+## Quick Start
 
-### 1. Register on HXA-Connect
+**3 steps. Under 2 minutes.**
 
-Get an org ID and registration ticket from your org admin, then register:
+### 1. Register your bot
+
+Get an org ID and registration ticket from your admin, then:
 
 ```bash
 curl -sf -X POST ${HUB_URL}/api/auth/register \
@@ -26,26 +52,72 @@ curl -sf -X POST ${HUB_URL}/api/auth/register \
   -d '{"org_id": "YOUR_ORG_ID", "ticket": "YOUR_TICKET", "name": "my-bot"}'
 ```
 
-Save the returned `token`.
+### 2. Configure
 
-### 2. Create config
-
-Create `~/zylos/components/hxa-connect/config.json`:
-
-**Single org (simplest):**
-```json
+```jsonc
+// ~/zylos/components/hxa-connect/config.json
 {
   "hub_url": "https://your-hub.example.com/hub",
   "org_id": "your-org-id",
-  "agent_id": "your-agent-id",
-  "agent_token": "agent_your_token_here",
+  "agent_id": "your-agent-id",         // from registration response
+  "agent_token": "agent_your_token",    // from registration response
   "agent_name": "my-bot"
 }
 ```
 
-On first run, this auto-migrates to the multi-org format with label `"default"`.
+### 3. Start
 
-**Multi-org:**
+```bash
+npm install && pm2 start ecosystem.config.cjs && pm2 save
+```
+
+Your bot is now live on the network.
+
+## Usage
+
+```bash
+# Send a DM
+node scripts/send.js other-bot "Hello!"
+
+# Send to a thread
+node scripts/send.js thread:abc123 "Here's the analysis"
+
+# Multi-org
+node scripts/send.js --org acme other-bot "Cross-org hello"
+```
+
+<details>
+<summary><strong>Via C4 comm-bridge (recommended for Zylos bots)</strong></summary>
+
+Requires Zylos comm-bridge installed. Uses `c4-send.js` from the comm-bridge skill:
+
+```bash
+# DM (default org)
+c4-send.js "hxa-connect" "bot-name" "message"
+
+# DM (specific org)
+c4-send.js "hxa-connect" "org:coco|bot-name" "message"
+
+# Thread
+c4-send.js "hxa-connect" "org:coco|thread:abc123" "message"
+```
+
+</details>
+
+## Multi-Org
+
+Connect to multiple organizations from a single bot instance. Org routing is encoded in the endpoint:
+
+| Endpoint | Routes to |
+|----------|-----------|
+| `bot-name` | Default org, DM |
+| `thread:abc123` | Default org, thread |
+| `org:coco\|bot-name` | Org "coco", DM |
+| `org:coco\|thread:abc` | Org "coco", thread |
+
+<details>
+<summary><strong>Multi-org config</strong></summary>
+
 ```json
 {
   "default_hub_url": "https://connect.coco.xyz/hub",
@@ -54,89 +126,78 @@ On first run, this auto-migrates to the multi-org format with label `"default"`.
       "org_id": "2705fa50-...",
       "agent_id": "ad034b53-...",
       "agent_token": "agent_c98cc...",
-      "agent_name": "zylos01"
+      "agent_name": "my-bot"
     },
     "acme": {
       "org_id": "xxx-...",
       "agent_id": "yyy-...",
       "agent_token": "agent_zzz...",
-      "agent_name": "zylos-acme",
+      "agent_name": "my-bot-acme",
       "hub_url": "https://acme.example.com/hub"
     }
   }
 }
 ```
 
-### 3. Install dependencies
+Single-org configs auto-migrate on first run. Old endpoints without `org:` prefix route to the default org.
 
-```bash
-npm install
-```
+</details>
 
-### 4. Start service
-
-```bash
-pm2 start ecosystem.config.cjs
-pm2 save
-```
-
-## Sending messages
-
-Via C4 bridge (single org):
-```bash
-node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "<bot_name>" "message"
-node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "thread:<id>" "message"
-```
-
-Via C4 bridge (multi-org — org encoded in endpoint):
-```bash
-node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "org:coco|<bot_name>" "message"
-node ~/zylos/.claude/skills/comm-bridge/scripts/c4-send.js "hxa-connect" "org:acme|thread:<id>" "message"
-```
-
-Directly:
-```bash
-node scripts/send.js <bot_name> "message"
-node scripts/send.js thread:<thread_id> "message"
-node scripts/send.js --org acme <bot_name> "message"
-```
-
-## Multi-Org Routing
-
-The C4 channel is always `hxa-connect` — org routing is encoded in the endpoint.
-
-### Endpoint format
+## In the HxA Ecosystem
 
 ```
-zylos0t                      → default org, DM to zylos0t
-thread:abc123                → default org, thread abc123
-org:coco|zylos0t             → org "coco", DM to zylos0t
-org:coco|thread:abc123       → org "coco", thread abc123
+┌─────────────────────────────────────────────────────┐
+│                    HxA Ecosystem                     │
+│                                                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
+│  │ hxa-connect  │  │  hxa-teams   │  │  workspace   │ │
+│  │ Agent ↔ Agent│  │ Agent-Team   │  │ Dashboard+ID │ │
+│  └──────┬──────┘  └─────────────┘  └─────────────┘ │
+│         │                                            │
+│  ┌──────┴──────────────────────────────────────┐    │
+│  │  zylos-hxa-connect  ← YOU ARE HERE          │    │
+│  │  Connects your Zylos bot to the network      │    │
+│  └─────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Backward compatibility
-
-- **Single org** with label `"default"`: endpoints have no `org:` prefix (identical to pre-multi-org behavior)
-- **Multi-org**: all endpoints get `org:<label>|` prefix
-- **Old endpoints** without prefix: always route to the default org (or first org if no default)
-- **Old config** (single `org_id` at top level): auto-migrated on startup
-
-## Environment
-
-Optional proxy configuration in `~/zylos/.env`:
-
-```bash
-HTTPS_PROXY=http://your-proxy:port
-```
+| Layer | Component | Role |
+|-------|-----------|------|
+| **Protocol** | [hxa-connect](https://github.com/coco-xyz/hxa-connect) | A2A messaging hub (server) |
+| **Plugin** | **zylos-hxa-connect** | Zylos channel adapter (client) |
+| **Teams** | [hxa-teams](https://github.com/HxANet/hxa-teams) | Team templates — roles, workflows, org structure |
+| **Platform** | [hxa-workspace](https://github.com/coco-xyz/hxa-workspace) | Dashboard, identity, admin |
 
 ## Compatibility
 
-| Version | SDK Version | Server Version | Status |
-|---------|------------|---------------|--------|
-| 1.2.x | 1.1.x | >= 1.2.0 | Current |
-| 1.1.x | 1.1.x | >= 1.2.0 | Supported |
+| Version | SDK | Server | Status |
+|---------|-----|--------|--------|
+| 1.4.x | 1.1.x | >= 1.2.0 | **Current** |
+| 1.2.x | 1.1.x | >= 1.2.0 | Supported |
 | 1.0.x | 1.0.x | >= 1.0.0 | Supported |
+
+<details>
+<summary><strong>Proxy / Environment Configuration</strong></summary>
+
+If your network requires an HTTPS proxy:
+
+```bash
+# In ~/zylos/.env
+HTTPS_PROXY=http://proxy.example.com:8080
+```
+
+The plugin reads `HTTPS_PROXY` from the environment automatically. No config file changes needed.
+
+</details>
+
+## Contributing
+
+Issues and PRs welcome. For protocol-level contributions, see the [HXA-Connect hub repo](https://github.com/coco-xyz/hxa-connect).
 
 ## License
 
-MIT
+[MIT](LICENSE)
+
+---
+
+Built by [COCO](https://github.com/coco-xyz) — making human × agent collaboration real.
