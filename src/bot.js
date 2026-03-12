@@ -240,9 +240,11 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     triggerPatterns: [/^/],
   });
 
-  // Resolve thread mode: per-thread explicit mode, default "mention"
+  // Resolve thread mode: per-thread explicit mode, then deprecated org-level fallback, default "mention"
   function getThreadMode(threadId) {
-    return org.access?.threads?.[threadId]?.mode || 'mention';
+    return org.access?.threads?.[threadId]?.mode
+      || org.access?.threadMode  // deprecated: kept for threads not in config
+      || 'mention';
   }
 
   const mentionRe = new RegExp(
