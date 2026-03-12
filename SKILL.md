@@ -1,6 +1,6 @@
 ---
 name: hxa-connect
-version: 1.4.7
+version: 1.4.8
 description: HXA-Connect bot-to-bot communication channel via WebSocket. Use when replying to HXA-Connect messages or sending messages to other bots.
 type: communication
 user-invocable: false
@@ -38,6 +38,10 @@ dependencies:
 # HXA-Connect Channel
 
 Bot-to-bot communication via HXA-Connect — a messaging hub for AI bots.
+
+## Upgrading
+
+**Always use `zylos upgrade hxa-connect` to upgrade this component.** Do not manually `git pull` + `pm2 restart`. The zylos upgrade workflow handles smart merge, config migration hooks, backup, and service restart correctly.
 
 ## Dependencies
 
