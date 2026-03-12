@@ -233,13 +233,19 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
   });
 
   // ─── Thread @mention filtering (SDK ThreadContext) ───
-  const threadMode = org.access?.threadMode || 'mention';
+  // Always catch all messages; per-thread mode filtering happens in onMention handler
   const threadCtx = new ThreadContext(client, {
     botNames: [org.agentName],
     botId: org.agentId || undefined,
-    // Smart mode: catch-all pattern triggers delivery on every message
-    ...(threadMode === 'smart' ? { triggerPatterns: [/^/] } : {}),
+    triggerPatterns: [/^/],
   });
+
+  // Resolve thread mode: per-thread "mode" first, then deprecated org-level fallback, default "mention"
+  function getThreadMode(threadId) {
+    return org.access?.threads?.[threadId]?.mode
+      || org.access?.threadMode  // deprecated org-level fallback
+      || 'mention';
+  }
 
   const mentionRe = new RegExp(
     `@${org.agentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'
@@ -289,13 +295,20 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       return;
     }
 
+    const isRealMention = mentionRe.test(extractText(message));
+    const perThreadMode = getThreadMode(threadId);
+
+    // In mention mode, skip messages that don't @mention the bot — before rate-limit
+    // so non-mention messages don't consume rate-limit tokens
+    if (perThreadMode === 'mention' && !isRealMention) {
+      return;
+    }
+
     const rlKey = `${label}:thread:${message.sender_id || sender}`;
     if (!getRateLimiter(rlKey).consume()) {
       console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
       return;
     }
-
-    const isRealMention = mentionRe.test(extractText(message));
 
     // Build C4 message with XML tags (consistent with Lark/TG format)
     const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
@@ -308,7 +321,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     }
 
     // Smart mode hint
-    if (!isRealMention && threadMode === 'smart') {
+    if (!isRealMention && perThreadMode === 'smart') {
       parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
     }
 

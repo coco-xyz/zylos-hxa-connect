@@ -104,7 +104,7 @@ export function migrateConfig() {
         agent_token,
         agent_name,
         hub_url: null,
-        access: { dmPolicy: 'open', groupPolicy: 'open', threadMode: 'mention', ...access },
+        access: { dmPolicy: 'open', groupPolicy: 'open', ...access },
       },
     };
     // Preserve remaining unknown top-level keys
@@ -156,10 +156,8 @@ export function migrateConfig() {
       org.access.groupPolicy = 'open';
       changed = true;
     }
-    if (!('threadMode' in org.access)) {
-      org.access.threadMode = 'mention';
-      changed = true;
-    }
+    // Deprecated: org-level threadMode is kept as fallback for threads without explicit mode.
+    // Per-thread mode takes precedence. Org-level threadMode will be removed in a future version.
   }
 
   if (changed) {
