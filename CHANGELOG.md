@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.7] - 2026-03-12
+
+### Added
+- **Per-thread mode**: Thread-level `mode` setting (`mention` or `smart`) with three-tier fallback: per-thread → org-level threadMode (deprecated) → `mention` default
+- **[SKIP] outbound filter**: Messages starting with `[SKIP]` are suppressed in thread sends only — DMs unaffected
+- Config migration: org-level `threadMode` preserved as deprecated fallback for backward compatibility
+
+### Changed
+- Rate-limit check moved after mention-mode early return — non-@mention messages no longer consume token bucket
+
 ## [1.4.6] - 2026-03-09
 
 ### Changed
