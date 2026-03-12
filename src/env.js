@@ -158,10 +158,7 @@ export function migrateConfig() {
     }
   }
 
-  // Phase 5: migrate org-level threadMode → per-thread mode
-  // Org-level threadMode is preserved as deprecated fallback (runtime still reads it for
-  // threads not in the config). It will be removed in a future version once all threads
-  // are guaranteed to have explicit mode fields.
+  // Phase 5: migrate org-level threadMode → per-thread mode, then remove org-level threadMode
   for (const [label, org] of Object.entries(config.orgs)) {
     if (!org.access) continue;
     const orgMode = org.access.threadMode;
@@ -174,11 +171,10 @@ export function migrateConfig() {
         changed = true;
       }
     }
-    // Log deprecation warning but do NOT delete org-level threadMode yet —
-    // it still serves as fallback for threads not in the config (e.g. new threads,
-    // groupPolicy: open orgs with unlisted threads).
     if ('threadMode' in org.access) {
-      console.log(`[hxa-connect] [${label}] org-level threadMode="${orgMode}" is deprecated — use per-thread mode instead`);
+      delete org.access.threadMode;
+      console.log(`[hxa-connect] [${label}] Removed deprecated org-level threadMode`);
+      changed = true;
     }
   }
 

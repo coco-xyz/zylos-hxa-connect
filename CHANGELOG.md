@@ -3,8 +3,8 @@
 ## [1.4.8] - 2026-03-12
 
 ### Changed
-- **Config migration Phase 5**: Org-level `threadMode` backfilled to per-thread `mode` field on all configured threads. Threads without explicit mode get the org-level value or `'mention'` default. Org-level `threadMode` preserved as deprecated runtime fallback for threads not in config (e.g. new threads, `groupPolicy: open` orgs).
-- **Deprecation notice**: Org-level `threadMode` logged as deprecated on startup. Will be removed in a future version once all threads have explicit `mode` fields.
+- **Config migration Phase 5**: Org-level `threadMode` migrated to per-thread `mode` field on all configured threads, then removed. Threads without explicit mode are backfilled with the org-level value or `'mention'` default.
+- **Org-level `threadMode` removed**: `getThreadMode()` no longer falls back to org-level `threadMode`. All threads must have explicit `mode` field (set by migration or admin CLI). New/unconfigured threads default to `mention`.
 - **SKILL.md**: Added upgrade notice — must use `zylos upgrade hxa-connect`, not manual git pull
 
 ## [1.4.7] - 2026-03-12
