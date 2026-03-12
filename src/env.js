@@ -156,21 +156,8 @@ export function migrateConfig() {
       org.access.groupPolicy = 'open';
       changed = true;
     }
-    // Migration: move deprecated org-level threadMode to per-thread mode
-    if ('threadMode' in org.access) {
-      const oldMode = org.access.threadMode;
-      if (oldMode === 'smart' && org.access.threads) {
-        // Propagate org-level smart to all threads that don't have explicit mode
-        for (const thread of Object.values(org.access.threads)) {
-          if (!('mode' in thread)) {
-            thread.mode = 'smart';
-          }
-        }
-        console.log(`[hxa-connect] Migrated org-level threadMode=smart to ${Object.keys(org.access.threads).length} thread(s)`);
-      }
-      delete org.access.threadMode;
-      changed = true;
-    }
+    // Deprecated: org-level threadMode is kept as fallback for threads without explicit mode.
+    // Per-thread mode takes precedence. Org-level threadMode will be removed in a future version.
   }
 
   if (changed) {

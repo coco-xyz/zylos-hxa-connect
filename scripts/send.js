@@ -54,14 +54,8 @@ if (args.length < 2) {
 const rawEndpoint = args[0];
 const message = args.slice(1).join(' ');
 
-// Filter out [SKIP] responses from smart mode — only for thread targets
-const { target: filterTarget } = parseEndpoint(rawEndpoint);
-if (/thread:/i.test(filterTarget) || /^[0-9a-f]{8}-/i.test(filterTarget)) {
-  if (/^\s*\[SKIP\]\s*$/i.test(message)) {
-    console.log('[hxa-connect] [SKIP] response filtered — not sending to thread');
-    process.exit(0);
-  }
-}
+// [SKIP] check helper — used by sendAsThread to filter smart-mode no-ops
+const isSkipResponse = /^\s*\[SKIP\]\s*$/i.test(message);
 
 const { orgLabel: endpointOrg, target: rawTarget } = parseEndpoint(rawEndpoint);
 
@@ -99,6 +93,11 @@ const client = new HxaConnectClient({
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function sendAsThread(threadId) {
+  // Filter [SKIP] responses from smart mode — only for confirmed thread sends
+  if (isSkipResponse) {
+    console.log(`[hxa-connect] [SKIP] response filtered — not sending to thread ${threadId}`);
+    return;
+  }
   const opts = replyToId ? { reply_to: replyToId } : undefined;
   let usedReplyTo = !!replyToId;
   try {
