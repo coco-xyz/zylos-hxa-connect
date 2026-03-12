@@ -293,17 +293,18 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       return;
     }
 
-    const rlKey = `${label}:thread:${message.sender_id || sender}`;
-    if (!getRateLimiter(rlKey).consume()) {
-      console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
-      return;
-    }
-
     const isRealMention = mentionRe.test(extractText(message));
     const perThreadMode = getThreadMode(threadId);
 
-    // In mention mode, skip messages that don't @mention the bot
+    // In mention mode, skip messages that don't @mention the bot — before rate-limit
+    // so non-mention messages don't consume rate-limit tokens
     if (perThreadMode === 'mention' && !isRealMention) {
+      return;
+    }
+
+    const rlKey = `${label}:thread:${message.sender_id || sender}`;
+    if (!getRateLimiter(rlKey).consume()) {
+      console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
       return;
     }
 
