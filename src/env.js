@@ -156,8 +156,26 @@ export function migrateConfig() {
       org.access.groupPolicy = 'open';
       changed = true;
     }
-    // Deprecated: org-level threadMode is kept as fallback for threads without explicit mode.
-    // Per-thread mode takes precedence. Org-level threadMode will be removed in a future version.
+  }
+
+  // Phase 5: migrate org-level threadMode → per-thread mode, then remove org-level threadMode
+  for (const [label, org] of Object.entries(config.orgs)) {
+    if (!org.access) continue;
+    const orgMode = org.access.threadMode;
+    const threads = org.access.threads || {};
+    for (const [id, thread] of Object.entries(threads)) {
+      if (!('mode' in thread)) {
+        // Backfill from org-level threadMode, or default to 'mention'
+        thread.mode = orgMode || 'mention';
+        console.log(`[hxa-connect] [${label}] Thread ${id}: backfilled mode="${thread.mode}"`);
+        changed = true;
+      }
+    }
+    if ('threadMode' in org.access) {
+      delete org.access.threadMode;
+      console.log(`[hxa-connect] [${label}] Removed deprecated org-level threadMode`);
+      changed = true;
+    }
   }
 
   if (changed) {
