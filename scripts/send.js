@@ -54,6 +54,12 @@ if (args.length < 2) {
 const rawEndpoint = args[0];
 const message = args.slice(1).join(' ');
 
+// Filter out [SKIP] responses from smart mode — don't send to thread
+if (/^\s*\[SKIP\]\s*$/i.test(message)) {
+  console.log('[hxa-connect] [SKIP] response filtered — not sending');
+  process.exit(0);
+}
+
 const { orgLabel: endpointOrg, target: rawTarget } = parseEndpoint(rawEndpoint);
 
 // Extract msg:<id> for reply-to (like TG's msg: pattern)

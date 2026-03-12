@@ -217,29 +217,55 @@ const commands = {
     console.log('Run: pm2 restart zylos-hxa-connect');
   },
 
-  // ─── Thread Mode ─────────────────────────────────────
+  // ─── Thread Mode (per-thread) ────────────────────────
 
-  'set-thread-mode': (config, label, mode) => {
+  'set-thread-mode': (config, label, threadId, mode) => {
     const valid = ['mention', 'smart'];
     mode = String(mode || '').trim().toLowerCase();
-    if (!valid.includes(mode)) {
-      console.error(`Usage: admin.js set-thread-mode <${valid.join('|')}>`);
+    if (!threadId || !valid.includes(mode)) {
+      console.error(`Usage: admin.js set-thread-mode <thread_id> <${valid.join('|')}>`);
       process.exit(1);
     }
     const access = getOrgAccess(config, label);
-    access.threadMode = mode;
+    if (!access.threads?.[threadId]) {
+      console.error(`[${label}] Thread ${threadId} not found. Add it first with add-thread.`);
+      process.exit(1);
+    }
+    if (mode === 'mention') {
+      // mention is default — remove explicit mode to keep config clean
+      delete access.threads[threadId].mode;
+    } else {
+      access.threads[threadId].mode = mode;
+    }
     if (!saveConfig(config)) process.exit(1);
     const desc = {
-      mention: '@mention only — bot responds when explicitly mentioned',
+      mention: '@mention only — bot responds when explicitly mentioned (default)',
       smart: 'All messages delivered — AI decides whether to respond',
     };
-    console.log(`[${label}] Thread mode set to: ${mode} (${desc[mode]})`);
+    console.log(`[${label}] Thread ${threadId} mode set to: ${mode} (${desc[mode]})`);
     console.log('Run: pm2 restart zylos-hxa-connect');
   },
 
-  'show-thread-mode': (config, label) => {
+  'show-thread-mode': (config, label, threadId) => {
     const access = getOrgAccess(config, label);
-    console.log(`[${label}] Thread mode: ${access.threadMode || 'mention'} (default: mention)`);
+    if (threadId) {
+      const thread = access.threads?.[threadId];
+      if (!thread) {
+        console.error(`[${label}] Thread ${threadId} not found`);
+        process.exit(1);
+      }
+      console.log(`[${label}] Thread ${threadId} (${thread.name || 'unnamed'}): ${thread.mode || 'mention'} (default: mention)`);
+    } else {
+      // Show all threads and their modes
+      const threads = access.threads || {};
+      if (Object.keys(threads).length === 0) {
+        console.log(`[${label}] No threads configured`);
+        return;
+      }
+      for (const [id, t] of Object.entries(threads)) {
+        console.log(`[${label}] ${id} (${t.name || 'unnamed'}): ${t.mode || 'mention'}`);
+      }
+    }
   },
 
   'set-thread-allowfrom': (config, label, threadId, ...senders) => {
@@ -284,16 +310,16 @@ Commands:
   remove-thread <thread_id>                         Remove thread
   set-thread-allowfrom <thread_id> <senders...>     Set allowed senders (use * for all)
 
-  Thread Mode (per-org):
-  set-thread-mode <mention|smart>                    Set thread response mode
-  show-thread-mode                                   Show current thread mode
+  Thread Mode (per-thread):
+  set-thread-mode <thread_id> <mention|smart>         Set thread response mode
+  show-thread-mode [thread_id]                        Show thread mode(s)
 
   help                                              Show this help
 
 Permission flow (evaluated per-org):
   DM:      dmPolicy (open|allowlist) + dmAllowFrom
   Threads: groupPolicy (open|allowlist|disabled) + threads map + per-thread allowFrom
-           threadMode (mention|smart) — mention = @mention only, smart = all messages delivered
+           Per-thread mode (mention default, smart opt-in) — mention = @mention only, smart = all messages
 
 After changes, restart: pm2 restart zylos-hxa-connect
 `);
