@@ -34,16 +34,19 @@ function formatAttachments(parts) {
     }
     switch (part.type) {
       case 'image':
+        if (!part.url) break;
         refs.push(part.alt
           ? `[image: ${part.alt} — ${part.url}]`
           : `[image: ${part.url}]`);
         break;
       case 'file': {
+        if (!part.url || !part.name) break;
         const size = part.size != null ? `, ${formatBytes(part.size)}` : '';
-        refs.push(`[file: ${part.name} (${part.mime_type}${size}) — ${part.url}]`);
+        refs.push(`[file: ${part.name} (${part.mime_type || 'application/octet-stream'}${size}) — ${part.url}]`);
         break;
       }
       case 'link':
+        if (!part.url) break;
         refs.push(part.title
           ? `[link: ${part.title} — ${part.url}]`
           : `[link: ${part.url}]`);
@@ -215,6 +218,38 @@ describe('formatAttachments', () => {
     assert.equal(
       formatAttachments(parts),
       '\n[link: https://example.com/page]'
+    );
+  });
+
+  it('skips image without url', () => {
+    const parts = [{ type: 'image', alt: 'orphan alt text' }];
+    assert.equal(formatAttachments(parts), '');
+  });
+
+  it('skips file without url', () => {
+    const parts = [{ type: 'file', name: 'orphan.pdf', mime_type: 'application/pdf' }];
+    assert.equal(formatAttachments(parts), '');
+  });
+
+  it('skips file without name', () => {
+    const parts = [{ type: 'file', url: 'https://cdn.example.com/unnamed', mime_type: 'text/plain' }];
+    assert.equal(formatAttachments(parts), '');
+  });
+
+  it('skips link without url', () => {
+    const parts = [{ type: 'link', title: 'Orphan Link' }];
+    assert.equal(formatAttachments(parts), '');
+  });
+
+  it('defaults mime_type for file without mime_type', () => {
+    const parts = [{
+      type: 'file',
+      url: 'https://cdn.example.com/mystery',
+      name: 'mystery',
+    }];
+    assert.equal(
+      formatAttachments(parts),
+      '\n[file: mystery (application/octet-stream) — https://cdn.example.com/mystery]'
     );
   });
 
@@ -505,7 +540,7 @@ describe('C4 message formatting (integration)', () => {
     assert.equal(formatted, '[HXA:coco DM] alice said: plain text message');
   });
 
-  it('Reply-to context only includes content (ReplyToMessage has no parts)', () => {
+  it('Reply-to context includes content when no parts', () => {
     const reply = {
       id: 'msg-1',
       sender_id: 'bot-1',
@@ -515,9 +550,39 @@ describe('C4 message formatting (integration)', () => {
     };
     const replySender = escapeXml(reply.sender_name);
     const replyContent = escapeXml(reply.content || '');
-    const replyTag = `<replying-to>\n[${replySender}]: ${replyContent}\n</replying-to>`;
+    const replyAtt = escapeXml(formatAttachments(reply.parts));
+    const replyTag = `<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>`;
 
     assert.ok(replyTag.includes('[alice]: original message'));
     assert.ok(!replyTag.includes('undefined'));
+  });
+
+  it('Reply-to context includes attachments from replied message', () => {
+    const reply = {
+      sender_name: 'alice',
+      content: 'see image',
+      parts: [{ type: 'image', url: 'https://cdn.example.com/reply.png', alt: 'chart' }]
+    };
+    const replySender = escapeXml(reply.sender_name);
+    const replyContent = escapeXml(reply.content || '');
+    const replyAtt = escapeXml(formatAttachments(reply.parts));
+    const replyTag = `<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>`;
+
+    assert.ok(replyTag.includes('[alice]: see image'));
+    assert.ok(replyTag.includes('[image: chart'));
+  });
+
+  it('Reply-to escapes ampersands in sender and content', () => {
+    const reply = {
+      sender_name: 'AT&T Bot',
+      content: 'x < y & z > w',
+    };
+    const replySender = escapeXml(reply.sender_name);
+    const replyContent = escapeXml(reply.content || '');
+    const replyAtt = escapeXml(formatAttachments(reply.parts));
+    const replyTag = `<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>`;
+
+    assert.ok(replyTag.includes('AT&amp;T Bot'));
+    assert.ok(replyTag.includes('x &lt; y &amp; z &gt; w'));
   });
 });
