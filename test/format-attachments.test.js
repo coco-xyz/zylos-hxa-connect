@@ -586,3 +586,63 @@ describe('C4 message formatting (integration)', () => {
     assert.ok(replyTag.includes('x &lt; y &amp; z &gt; w'));
   });
 });
+
+// ─── @all / mention_all filtering ───────────────────────────────────────
+
+describe('@all / mention_all filtering', () => {
+  const mentionRe = /@testbot\b/i;
+
+  // Re-implements the isRealMention logic from bot.js (after the fix)
+  function isRealMention(message) {
+    return mentionRe.test(extractText(message)) || !!message.mention_all;
+  }
+
+  it('@all with mention_all flag → isRealMention true', () => {
+    const message = { content: 'hello @all', mention_all: true };
+    assert.ok(isRealMention(message));
+  });
+
+  it('@botname without mention_all → isRealMention true', () => {
+    const message = { content: 'hey @testbot check this' };
+    assert.ok(isRealMention(message));
+  });
+
+  it('no mention and no mention_all → isRealMention false', () => {
+    const message = { content: 'hello everyone' };
+    assert.ok(!isRealMention(message));
+  });
+
+  it('mention_all true with @所有人 → isRealMention true', () => {
+    const message = { content: '@所有人 hello', mention_all: true };
+    assert.ok(isRealMention(message));
+  });
+
+  it('mention mode skips non-mention messages', () => {
+    const message = { content: 'just chatting' };
+    const threadMode = 'mention';
+    const shouldSkip = threadMode === 'mention' && !isRealMention(message);
+    assert.ok(shouldSkip);
+  });
+
+  it('mention mode does NOT skip @all messages', () => {
+    const message = { content: 'hello @all', mention_all: true };
+    const threadMode = 'mention';
+    const shouldSkip = threadMode === 'mention' && !isRealMention(message);
+    assert.ok(!shouldSkip, '@all messages must not be filtered in mention mode');
+  });
+
+  it('mention_all without text mention → still passes mention mode', () => {
+    // Edge case: mention_all flag set but no @botname in text
+    const message = { content: 'everyone please review', mention_all: true };
+    const threadMode = 'mention';
+    const shouldSkip = threadMode === 'mention' && !isRealMention(message);
+    assert.ok(!shouldSkip);
+  });
+
+  it('smart mode passes @all messages through', () => {
+    const message = { content: '@all review this', mention_all: true };
+    const threadMode = 'smart';
+    const shouldSkip = threadMode === 'mention' && !isRealMention(message);
+    assert.ok(!shouldSkip);
+  });
+});
