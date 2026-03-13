@@ -25,7 +25,13 @@ function formatAttachments(parts) {
   const refs = [];
   let truncated = 0;
   for (const part of parts) {
-    if (refs.length >= MAX_ATTACHMENT_PARTS) { truncated++; continue; }
+    if (refs.length >= MAX_ATTACHMENT_PARTS) {
+      if (part.type === 'image' || part.type === 'file' || part.type === 'link'
+          || (part.type && part.url)) {
+        truncated++;
+      }
+      continue;
+    }
     switch (part.type) {
       case 'image':
         refs.push(part.alt
@@ -274,6 +280,24 @@ describe('formatAttachments', () => {
     ];
     const result = formatAttachments(parts);
     assert.ok(result.includes('[... and 1 more]'));
+  });
+
+  it('truncation count excludes text/json parts after limit', () => {
+    // After hitting the 20-ref limit, text/json parts shouldn't inflate the count
+    const parts = [
+      ...Array.from({ length: 20 }, (_, i) => ({
+        type: 'image', url: `https://cdn.example.com/${i}.png`
+      })),
+      { type: 'text', content: 'should not count' },
+      { type: 'json', content: { key: 'value' } },
+      { type: 'markdown', content: '# also not counted' },
+      { type: 'image', url: 'https://cdn.example.com/real-overflow.png' },
+      { type: 'file', url: 'https://cdn.example.com/extra.pdf', name: 'extra.pdf', mime_type: 'application/pdf' },
+    ];
+    const result = formatAttachments(parts);
+    // Only image + file after limit should be counted (2), not text/json/markdown (3)
+    assert.ok(result.includes('[... and 2 more]'));
+    assert.ok(!result.includes('[... and 5 more]'));
   });
 });
 

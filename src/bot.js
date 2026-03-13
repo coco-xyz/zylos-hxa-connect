@@ -60,7 +60,14 @@ function formatAttachments(parts) {
   const refs = [];
   let truncated = 0;
   for (const part of parts) {
-    if (refs.length >= MAX_ATTACHMENT_PARTS) { truncated++; continue; }
+    if (refs.length >= MAX_ATTACHMENT_PARTS) {
+      // Only count parts that would have produced a ref
+      if (part.type === 'image' || part.type === 'file' || part.type === 'link'
+          || (part.type && part.url)) {
+        truncated++;
+      }
+      continue;
+    }
     switch (part.type) {
       case 'image':
         refs.push(part.alt
