@@ -70,16 +70,19 @@ function formatAttachments(parts) {
     }
     switch (part.type) {
       case 'image':
+        if (!part.url) break;
         refs.push(part.alt
           ? `[image: ${part.alt} — ${part.url}]`
           : `[image: ${part.url}]`);
         break;
       case 'file': {
+        if (!part.url || !part.name) break;
         const size = part.size != null ? `, ${formatBytes(part.size)}` : '';
-        refs.push(`[file: ${part.name} (${part.mime_type}${size}) — ${part.url}]`);
+        refs.push(`[file: ${part.name} (${part.mime_type || 'application/octet-stream'}${size}) — ${part.url}]`);
         break;
       }
       case 'link':
+        if (!part.url) break;
         refs.push(part.title
           ? `[link: ${part.title} — ${part.url}]`
           : `[link: ${part.url}]`);
@@ -391,7 +394,8 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       const reply = message.reply_to_message;
       const replySender = escapeXml(reply.sender_name || reply.sender_id || 'unknown');
       const replyContent = escapeXml(reply.content || '');
-      parts.push(`<replying-to>\n[${replySender}]: ${replyContent}\n</replying-to>\n\n`);
+      const replyAtt = escapeXml(formatAttachments(reply.parts));
+      parts.push(`<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>\n\n`);
     }
 
     // Current message (includes non-text attachments: image, file, link)
