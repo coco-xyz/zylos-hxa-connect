@@ -356,7 +356,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       return;
     }
 
-    const isRealMention = mentionRe.test(extractText(message));
+    const isRealMention = mentionRe.test(extractText(message)) || !!message.mention_all;
     const perThreadMode = getThreadMode(threadId);
 
     // In mention mode, skip messages that don't @mention the bot — before rate-limit
