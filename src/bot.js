@@ -119,7 +119,8 @@ const MIME_TO_EXT = {
 };
 
 // Match Hub-internal file URLs: /api/files/<id> (ID is opaque — no format constraints)
-const HUB_FILE_RE = /^\/api\/files\/(.+)$/;
+// [^?#]+ excludes query strings and fragments from the captured ID.
+const HUB_FILE_RE = /^\/api\/files\/([^?#]+)/;
 
 /**
  * Download media parts (image/file) from Hub to local filesystem.
@@ -132,7 +133,13 @@ async function downloadMediaParts(parts, client, orgLabel, lp) {
 
   const localPaths = {};
   const orgDir = path.join(MEDIA_BASE_DIR, orgLabel);
-  fs.mkdirSync(orgDir, { recursive: true });
+
+  try {
+    fs.mkdirSync(orgDir, { recursive: true });
+  } catch (err) {
+    console.warn(`${lp} Failed to create media dir ${orgDir}: ${err.message}`);
+    return localPaths;
+  }
 
   for (const part of parts) {
     if (part.type !== 'image' && part.type !== 'file') continue;
@@ -151,7 +158,7 @@ async function downloadMediaParts(parts, client, orgLabel, lp) {
       const filename = `${timestamp}-${safeId}${ext}`;
 
       const localPath = path.join(orgDir, filename);
-      fs.writeFileSync(localPath, Buffer.from(result.buffer));
+      fs.writeFileSync(localPath, result.buffer);
 
       localPaths[part.url] = localPath;
       console.log(`${lp} Media saved: ${localPath} (${formatBytes(result.size)})`);
@@ -409,77 +416,81 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
   }
 
   threadCtx.onMention(async ({ threadId, message, snapshot }) => {
-    const sender = msgSender(message);
-    const content = message.content || '';
+    try {
+      const sender = msgSender(message);
+      const content = message.content || '';
 
-    // groupPolicy gates thread access (threads = group chat)
-    if (!isThreadAllowed(org.access, threadId)) {
-      console.log(`${lp} Thread ${threadId} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
-      return;
+      // groupPolicy gates thread access (threads = group chat)
+      if (!isThreadAllowed(org.access, threadId)) {
+        console.log(`${lp} Thread ${threadId} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
+        return;
+      }
+      if (!isSenderAllowed(org.access, threadId, sender)) {
+        console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
+        return;
+      }
+
+      const isRealMention = mentionRe.test(extractText(message)) || !!message.mention_all;
+      const perThreadMode = getThreadMode(threadId);
+
+      // In mention mode, skip messages that don't @mention the bot — before rate-limit
+      // so non-mention messages don't consume rate-limit tokens
+      if (perThreadMode === 'mention' && !isRealMention) {
+        return;
+      }
+
+      const rlKey = `${label}:thread:${message.sender_id || sender}`;
+      if (!getRateLimiter(rlKey).consume()) {
+        console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
+        return;
+      }
+
+      // Download media for trigger message (after policy checks)
+      const localPaths = await downloadMediaParts(message.parts, client, label, lp);
+      const attachments = formatAttachments(message.parts, localPaths);
+
+      if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
+        console.warn(`${lp} Thread ${threadId} from ${sender} rejected — content too large (${content.length + attachments.length} bytes)`);
+        return;
+      }
+
+      // Build C4 message with XML tags (consistent with Lark/TG format)
+      const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
+
+      // Thread context: previous messages (excluding trigger) — no media download for context
+      const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
+      if (contextMsgs.length > 0) {
+        const lines = contextMsgs.map(m => {
+          const ctxAtt = formatAttachments(m.parts);
+          return `[${escapeXml(msgSender(m))}]: ${escapeXml(m.content || '')}${escapeXml(ctxAtt)}`;
+        });
+        parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
+      }
+
+      // Smart mode hint
+      if (!isRealMention && perThreadMode === 'smart') {
+        parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
+      }
+
+      // Reply-to context (like TG's replying-to format)
+      if (message.reply_to_message) {
+        const reply = message.reply_to_message;
+        const replySender = escapeXml(reply.sender_name || reply.sender_id || 'unknown');
+        const replyContent = escapeXml(reply.content || '');
+        const replyAtt = escapeXml(formatAttachments(reply.parts));
+        parts.push(`<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>\n\n`);
+      }
+
+      // Current message (includes non-text attachments with local paths when downloaded)
+      parts.push(`<current-message>\n${escapeXml(content)}${escapeXml(attachments)}\n</current-message>`);
+
+      // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
+      const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
+      console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
+      sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
+    } catch (err) {
+      console.error(`${lp} Thread handler error: ${err.message}`);
     }
-    if (!isSenderAllowed(org.access, threadId, sender)) {
-      console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
-      return;
-    }
-
-    const isRealMention = mentionRe.test(extractText(message)) || !!message.mention_all;
-    const perThreadMode = getThreadMode(threadId);
-
-    // In mention mode, skip messages that don't @mention the bot — before rate-limit
-    // so non-mention messages don't consume rate-limit tokens
-    if (perThreadMode === 'mention' && !isRealMention) {
-      return;
-    }
-
-    const rlKey = `${label}:thread:${message.sender_id || sender}`;
-    if (!getRateLimiter(rlKey).consume()) {
-      console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
-      return;
-    }
-
-    // Download media for trigger message (after policy checks)
-    const localPaths = await downloadMediaParts(message.parts, client, label, lp);
-    const attachments = formatAttachments(message.parts, localPaths);
-
-    if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
-      console.warn(`${lp} Thread ${threadId} from ${sender} rejected — content too large (${content.length + attachments.length} bytes)`);
-      return;
-    }
-
-    // Build C4 message with XML tags (consistent with Lark/TG format)
-    const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
-
-    // Thread context: previous messages (excluding trigger) — no media download for context
-    const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
-    if (contextMsgs.length > 0) {
-      const lines = contextMsgs.map(m => {
-        const ctxAtt = formatAttachments(m.parts);
-        return `[${escapeXml(msgSender(m))}]: ${escapeXml(m.content || '')}${escapeXml(ctxAtt)}`;
-      });
-      parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
-    }
-
-    // Smart mode hint
-    if (!isRealMention && perThreadMode === 'smart') {
-      parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
-    }
-
-    // Reply-to context (like TG's replying-to format)
-    if (message.reply_to_message) {
-      const reply = message.reply_to_message;
-      const replySender = escapeXml(reply.sender_name || reply.sender_id || 'unknown');
-      const replyContent = escapeXml(reply.content || '');
-      const replyAtt = escapeXml(formatAttachments(reply.parts));
-      parts.push(`<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>\n\n`);
-    }
-
-    // Current message (includes non-text attachments with local paths when downloaded)
-    parts.push(`<current-message>\n${escapeXml(content)}${escapeXml(attachments)}\n</current-message>`);
-
-    // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
-    const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
-    console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
   });
 
   client.on('thread_message', (msg) => {

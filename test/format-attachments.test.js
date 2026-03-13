@@ -66,7 +66,7 @@ function formatAttachments(parts, localPaths) {
 }
 
 // Hub file URL pattern
-const HUB_FILE_RE = /^\/api\/files\/(.+)$/;
+const HUB_FILE_RE = /^\/api\/files\/([^?#]+)/;
 
 function extractText(msg) {
   const texts = [msg.content || ''];
@@ -676,6 +676,18 @@ describe('HUB_FILE_RE (Hub-internal file URL pattern)', () => {
 
   it('rejects external URLs', () => {
     assert.equal(HUB_FILE_RE.exec('https://cdn.example.com/photo.jpg'), null);
+  });
+
+  it('strips query string from captured ID', () => {
+    const match = HUB_FILE_RE.exec('/api/files/abc123?token=xyz&v=2');
+    assert.ok(match);
+    assert.equal(match[1], 'abc123');
+  });
+
+  it('strips fragment from captured ID', () => {
+    const match = HUB_FILE_RE.exec('/api/files/abc123#section');
+    assert.ok(match);
+    assert.equal(match[1], 'abc123');
   });
 
   it('rejects non-file API paths', () => {
