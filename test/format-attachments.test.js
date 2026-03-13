@@ -66,7 +66,7 @@ function formatAttachments(parts, localPaths) {
 }
 
 // Hub file URL pattern
-const HUB_FILE_RE = /^\/api\/files\/([a-f0-9-]+)$/i;
+const HUB_FILE_RE = /^\/api\/files\/(.+)$/;
 
 function extractText(msg) {
   const texts = [msg.content || ''];
@@ -662,18 +662,20 @@ describe('HUB_FILE_RE (Hub-internal file URL pattern)', () => {
     assert.equal(match[1], '550e8400-e29b-41d4-a716-446655440000');
   });
 
-  it('matches short UUIDs', () => {
+  it('matches short IDs (opaque)', () => {
     const match = HUB_FILE_RE.exec('/api/files/abc123');
     assert.ok(match);
     assert.equal(match[1], 'abc123');
   });
 
-  it('rejects external URLs', () => {
-    assert.equal(HUB_FILE_RE.exec('https://cdn.example.com/photo.jpg'), null);
+  it('matches IDs with non-hex characters (opaque)', () => {
+    const match = HUB_FILE_RE.exec('/api/files/file_2026-XYZ.dat');
+    assert.ok(match);
+    assert.equal(match[1], 'file_2026-XYZ.dat');
   });
 
-  it('rejects URLs with extra path segments', () => {
-    assert.equal(HUB_FILE_RE.exec('/api/files/abc123/download'), null);
+  it('rejects external URLs', () => {
+    assert.equal(HUB_FILE_RE.exec('https://cdn.example.com/photo.jpg'), null);
   });
 
   it('rejects non-file API paths', () => {

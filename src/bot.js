@@ -106,8 +106,6 @@ function formatAttachments(parts, localPaths) {
 // ─── Media Download ─────────────────────────────────────────
 
 const MEDIA_BASE_DIR = path.join(HOME, 'zylos/media/hxa-connect');
-const DEFAULT_MEDIA_MAX_BYTES = 10 * 1024 * 1024; // 10 MB
-const MEDIA_DOWNLOAD_TIMEOUT = 30000; // 30 seconds
 
 const MIME_TO_EXT = {
   'image/jpeg': '.jpg',
@@ -120,15 +118,16 @@ const MIME_TO_EXT = {
   'application/json': '.json',
 };
 
-// Match Hub-internal file URLs: /api/files/<uuid>
-const HUB_FILE_RE = /^\/api\/files\/([a-f0-9-]+)$/i;
+// Match Hub-internal file URLs: /api/files/<id> (ID is opaque — no format constraints)
+const HUB_FILE_RE = /^\/api\/files\/(.+)$/;
 
 /**
  * Download media parts (image/file) from Hub to local filesystem.
+ * Uses client.downloadFile() from hxa-connect-sdk for the actual download.
  * Returns a map of original URL → local file path.
  * Only downloads Hub-internal URLs (/api/files/:id); external URLs are skipped.
  */
-async function downloadMediaParts(parts, hubUrl, token, orgLabel, lp) {
+async function downloadMediaParts(parts, client, orgLabel, lp) {
   if (!parts || !parts.length) return {};
 
   const localPaths = {};
@@ -145,54 +144,17 @@ async function downloadMediaParts(parts, hubUrl, token, orgLabel, lp) {
     const fileId = match[1];
 
     try {
-      const fullUrl = `${hubUrl}/api/files/${fileId}`;
-      const res = await fetch(fullUrl, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        signal: AbortSignal.timeout(MEDIA_DOWNLOAD_TIMEOUT),
-      });
-
-      if (!res.ok) {
-        console.warn(`${lp} Media download failed: ${fullUrl} → ${res.status}`);
-        await res.body?.cancel();
-        continue;
-      }
-
-      // Check content-length before downloading full body
-      const clHeader = res.headers.get('content-length');
-      if (clHeader && parseInt(clHeader, 10) > DEFAULT_MEDIA_MAX_BYTES) {
-        console.warn(`${lp} Media too large (${formatBytes(parseInt(clHeader, 10))}), skipping: ${fileId}`);
-        await res.body?.cancel();
-        continue;
-      }
-
-      // Stream body with size guard to prevent OOM on missing Content-Length
-      const chunks = [];
-      let totalBytes = 0;
-      let aborted = false;
-      for await (const chunk of res.body) {
-        totalBytes += chunk.length;
-        if (totalBytes > DEFAULT_MEDIA_MAX_BYTES) {
-          console.warn(`${lp} Media exceeded limit during download (>${formatBytes(DEFAULT_MEDIA_MAX_BYTES)}), aborting: ${fileId}`);
-          aborted = true;
-          break; // for-await cleanup cancels the stream
-        }
-        chunks.push(chunk);
-      }
-      if (aborted) continue;
-
-      const buffer = Buffer.concat(chunks);
-
-      // Determine extension from response content-type
-      const contentType = (res.headers.get('content-type') || '').split(';')[0].trim();
-      const ext = MIME_TO_EXT[contentType] || '';
+      const result = await client.downloadFile(fileId);
+      const ext = MIME_TO_EXT[result.contentType] || '';
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `${timestamp}-${fileId.substring(0, 8)}${ext}`;
+      const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 16);
+      const filename = `${timestamp}-${safeId}${ext}`;
 
       const localPath = path.join(orgDir, filename);
-      fs.writeFileSync(localPath, buffer);
+      fs.writeFileSync(localPath, Buffer.from(result.buffer));
 
       localPaths[part.url] = localPath;
-      console.log(`${lp} Media saved: ${localPath} (${formatBytes(buffer.length)})`);
+      console.log(`${lp} Media saved: ${localPath} (${formatBytes(result.size)})`);
     } catch (err) {
       console.warn(`${lp} Media download error for ${part.url}: ${err.message}`);
     }
@@ -370,7 +332,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
       // Download media after policy checks to avoid wasted effort
       const msgParts = msg.message?.parts || msg.parts;
-      const localPaths = await downloadMediaParts(msgParts, org.hubUrl, org.agentToken, label, lp);
+      const localPaths = await downloadMediaParts(msgParts, client, label, lp);
       const attachments = formatAttachments(msgParts, localPaths);
 
       if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
@@ -476,7 +438,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     }
 
     // Download media for trigger message (after policy checks)
-    const localPaths = await downloadMediaParts(message.parts, org.hubUrl, org.agentToken, label, lp);
+    const localPaths = await downloadMediaParts(message.parts, client, label, lp);
     const attachments = formatAttachments(message.parts, localPaths);
 
     if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
