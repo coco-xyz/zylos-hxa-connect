@@ -9,7 +9,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { MIME_TO_EXT, generateFilename } from '../src/lib/media.js';
+import { MEDIA_BASE_DIR, MIME_TO_EXT, generateFilename } from '../src/lib/media.js';
 
 // ─── Tests ──────────────────────────────────────────────────────
 
@@ -37,9 +37,6 @@ describe('generateFilename', () => {
   it('should truncate long fileIds to 16 characters', () => {
     const longId = 'a'.repeat(100);
     const filename = generateFilename(longId, 'image/jpeg');
-    // safeId portion should be max 16 chars of 'a'
-    const parts = filename.split('-');
-    // The last part before extension is the safeId
     const withoutTimestamp = filename.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/, '');
     const safeIdPart = withoutTimestamp.replace('.jpg', '');
     assert.equal(safeIdPart.length, 16, `safeId should be 16 chars, got ${safeIdPart.length}`);
@@ -56,6 +53,20 @@ describe('generateFilename', () => {
     assert.ok(filename.endsWith('.png'));
     // Should still have timestamp
     assert.match(filename, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('should handle undefined contentType gracefully', () => {
+    const filename = generateFilename('test-id', undefined);
+    // No extension when contentType is undefined
+    assert.ok(filename.endsWith('test-id'), `Expected no extension, got: ${filename}`);
+    assert.match(filename, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('should handle fileId with only special characters', () => {
+    const filename = generateFilename('!@#$%^', 'image/png');
+    assert.ok(!filename.includes('!'), `Should not contain special chars: ${filename}`);
+    assert.ok(!filename.includes('@'), `Should not contain @: ${filename}`);
+    assert.ok(filename.endsWith('.png'));
   });
 
   it('should handle all known MIME types', () => {
@@ -93,6 +104,42 @@ describe('MIME_TO_EXT', () => {
     assert.equal(MIME_TO_EXT['text/plain'], '.txt');
     assert.equal(MIME_TO_EXT['text/csv'], '.csv');
     assert.equal(MIME_TO_EXT['application/json'], '.json');
+  });
+});
+
+describe('MEDIA_BASE_DIR', () => {
+  it('should end with hxa-connect', () => {
+    assert.ok(MEDIA_BASE_DIR.endsWith('/zylos/media/hxa-connect'), `Unexpected base dir: ${MEDIA_BASE_DIR}`);
+  });
+
+  it('should be an absolute path', () => {
+    assert.ok(MEDIA_BASE_DIR.startsWith('/'), `Expected absolute path: ${MEDIA_BASE_DIR}`);
+  });
+});
+
+describe('sourceUrl construction', () => {
+  it('should not produce double slashes when hubUrl has trailing slash', () => {
+    const hubUrl = 'https://hub.example.com/';
+    const baseUrl = hubUrl.replace(/\/+$/, '');
+    const sourceUrl = `${baseUrl}/api/files/${encodeURIComponent('abc-123')}`;
+    assert.ok(!sourceUrl.includes('//api'), `Double slash found: ${sourceUrl}`);
+    assert.equal(sourceUrl, 'https://hub.example.com/api/files/abc-123');
+  });
+
+  it('should handle hubUrl without trailing slash', () => {
+    const hubUrl = 'https://hub.example.com';
+    const baseUrl = hubUrl.replace(/\/+$/, '');
+    const sourceUrl = `${baseUrl}/api/files/${encodeURIComponent('abc-123')}`;
+    assert.equal(sourceUrl, 'https://hub.example.com/api/files/abc-123');
+  });
+
+  it('should encode special characters in fileId', () => {
+    const hubUrl = 'https://hub.example.com';
+    const baseUrl = hubUrl.replace(/\/+$/, '');
+    const fileId = 'file with spaces/and&chars';
+    const sourceUrl = `${baseUrl}/api/files/${encodeURIComponent(fileId)}`;
+    assert.ok(!sourceUrl.includes(' '), 'Spaces should be encoded');
+    assert.ok(sourceUrl.includes('file%20with%20spaces'), 'Spaces should be %20 encoded');
   });
 });
 

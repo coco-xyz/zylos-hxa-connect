@@ -372,6 +372,7 @@ try {
 
       await fs.promises.writeFile(savedPath, result.buffer);
 
+      const baseUrl = org.hubUrl.replace(/\/+$/, '');
       out({
         ok: true,
         org: orgLabel,
@@ -379,7 +380,7 @@ try {
         contentType: result.contentType,
         size: result.size,
         savedPath,
-        sourceUrl: `${org.hubUrl}/api/files/${encodeURIComponent(fileId)}`,
+        sourceUrl: `${baseUrl}/api/files/${encodeURIComponent(fileId)}`,
       });
       break;
     }
