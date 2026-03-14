@@ -9,6 +9,7 @@
 
 import { HxaConnectClient, ThreadContext } from '@coco-xyz/hxa-connect-sdk';
 import { execFile } from 'child_process';
+import fs from 'fs';
 import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { migrateConfig, resolveOrgs, setupFetchProxy, PROXY_URL } from './env.js';
@@ -55,7 +56,7 @@ function formatBytes(bytes) {
 // complex objects not suitable for inline display — both are skipped here.
 const MAX_ATTACHMENT_PARTS = 20;
 
-function formatAttachments(parts) {
+function formatAttachments(parts, localPaths) {
   if (!parts || !parts.length) return '';
   const refs = [];
   let truncated = 0;
@@ -69,16 +70,19 @@ function formatAttachments(parts) {
       continue;
     }
     switch (part.type) {
-      case 'image':
+      case 'image': {
         if (!part.url) break;
+        const loc = localPaths?.[part.url];
         refs.push(part.alt
-          ? `[image: ${part.alt} — ${part.url}]`
-          : `[image: ${part.url}]`);
+          ? `[image: ${part.alt} — ${loc || part.url}]`
+          : `[image: ${loc || part.url}]`);
         break;
+      }
       case 'file': {
         if (!part.url || !part.name) break;
         const size = part.size != null ? `, ${formatBytes(part.size)}` : '';
-        refs.push(`[file: ${part.name} (${part.mime_type || 'application/octet-stream'}${size}) — ${part.url}]`);
+        const loc = localPaths?.[part.url];
+        refs.push(`[file: ${part.name} (${part.mime_type || 'application/octet-stream'}${size}) — ${loc || part.url}]`);
         break;
       }
       case 'link':
@@ -97,6 +101,76 @@ function formatAttachments(parts) {
   }
   if (truncated > 0) refs.push(`[... and ${truncated} more]`);
   return refs.length > 0 ? '\n' + refs.join('\n') : '';
+}
+
+// ─── Media Download ─────────────────────────────────────────
+
+const MEDIA_BASE_DIR = path.join(HOME, 'zylos/media/hxa-connect');
+
+const MIME_TO_EXT = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt',
+  'text/csv': '.csv',
+  'application/json': '.json',
+};
+
+// Match Hub-internal file URLs: /api/files/<id> (ID is opaque — no format constraints)
+// [^?#]+ excludes query strings and fragments from the captured ID.
+const HUB_FILE_RE = /^\/api\/files\/([^/?#]+)/;
+
+/**
+ * Download media parts (image/file) from Hub to local filesystem.
+ * Uses client.downloadFile() from hxa-connect-sdk for the actual download.
+ * Returns a map of original URL → local file path.
+ * Only downloads Hub-internal URLs (/api/files/:id); external URLs are skipped.
+ */
+async function downloadMediaParts(parts, client, orgLabel, lp) {
+  if (!parts || !parts.length) return {};
+
+  const localPaths = {};
+  const orgDir = path.join(MEDIA_BASE_DIR, orgLabel);
+
+  try {
+    await fs.promises.mkdir(orgDir, { recursive: true });
+  } catch (err) {
+    console.warn(`${lp} Failed to create media dir ${orgDir}: ${err.message}`);
+    return localPaths;
+  }
+
+  for (const part of parts) {
+    if (part.type !== 'image' && part.type !== 'file') continue;
+    if (!part.url) continue;
+
+    const match = HUB_FILE_RE.exec(part.url);
+    if (!match) continue; // External URL, skip
+
+    const fileId = match[1];
+
+    try {
+      const result = await client.downloadFile(fileId, {
+        maxBytes: 10 * 1024 * 1024, // 10 MB
+        timeout: 30_000,
+      });
+      const ext = MIME_TO_EXT[result.contentType] || '';
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 16);
+      const filename = `${timestamp}-${safeId}${ext}`;
+
+      const localPath = path.join(orgDir, filename);
+      await fs.promises.writeFile(localPath, result.buffer);
+
+      localPaths[part.url] = localPath;
+      console.log(`${lp} Media saved: ${localPath} (${formatBytes(result.size)})`);
+    } catch (err) {
+      console.warn(`${lp} Media download error for ${part.url}: ${err.message}`);
+    }
+  }
+
+  return localPaths;
 }
 
 await setupFetchProxy();
@@ -249,31 +323,39 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
   // ─── Event Handlers ───────────────────────────────────
 
-  client.on('message', (msg) => {
-    const sender = msg.sender_name || 'unknown';
-    const content = msg.message?.content || msg.content || '';
-    const attachments = formatAttachments(msg.message?.parts || msg.parts);
-    if (isSelf(msg.message?.sender_id, msg.message?.metadata)) return;
+  client.on('message', async (msg) => {
+    try {
+      const sender = msg.sender_name || 'unknown';
+      const content = msg.message?.content || msg.content || '';
+      if (isSelf(msg.message?.sender_id, msg.message?.metadata)) return;
 
-    if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
-      console.warn(`${lp} DM from ${sender} rejected — content too large (${content.length + attachments.length} bytes)`);
-      return;
+      if (!isDmAllowed(org.access, sender)) {
+        console.log(`${lp} DM from ${sender} rejected (dmPolicy: ${org.access?.dmPolicy || 'open'})`);
+        return;
+      }
+
+      const rlKey = `${label}:dm:${msg.message?.sender_id || sender}`;
+      if (!getRateLimiter(rlKey).consume()) {
+        console.warn(`${lp} DM from ${sender} rate-limited, dropping`);
+        return;
+      }
+
+      // Download media after policy checks to avoid wasted effort
+      const msgParts = msg.message?.parts || msg.parts;
+      const localPaths = await downloadMediaParts(msgParts, client, label, lp);
+      const attachments = formatAttachments(msgParts, localPaths);
+
+      if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
+        console.warn(`${lp} DM from ${sender} rejected — content too large (${content.length + attachments.length} bytes)`);
+        return;
+      }
+
+      console.log(`${lp} DM from ${sender}: ${content.substring(0, 80)}`);
+      const formatted = `[${dp} DM] ${sender} said: ${content}${attachments}`;
+      sendToC4(C4_CHANNEL, c4Endpoint(label, sender), formatted);
+    } catch (err) {
+      console.error(`${lp} DM handler error: ${err.message}`);
     }
-
-    if (!isDmAllowed(org.access, sender)) {
-      console.log(`${lp} DM from ${sender} rejected (dmPolicy: ${org.access?.dmPolicy || 'open'})`);
-      return;
-    }
-
-    const rlKey = `${label}:dm:${msg.message?.sender_id || sender}`;
-    if (!getRateLimiter(rlKey).consume()) {
-      console.warn(`${lp} DM from ${sender} rate-limited, dropping`);
-      return;
-    }
-
-    console.log(`${lp} DM from ${sender}: ${content.substring(0, 80)}`);
-    const formatted = `[${dp} DM] ${sender} said: ${content}${attachments}`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, sender), formatted);
   });
 
   // channel_message handler removed — channels are DMs, group channels no longer exist.
@@ -336,75 +418,82 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     return botName;
   }
 
-  threadCtx.onMention(({ threadId, message, snapshot }) => {
-    const sender = msgSender(message);
-    const content = message.content || '';
-    const attachments = formatAttachments(message.parts);
+  threadCtx.onMention(async ({ threadId, message, snapshot }) => {
+    try {
+      const sender = msgSender(message);
+      const content = message.content || '';
 
-    if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
-      console.warn(`${lp} Thread ${threadId} from ${sender} rejected — content too large (${content.length + attachments.length} bytes)`);
-      return;
+      // groupPolicy gates thread access (threads = group chat)
+      if (!isThreadAllowed(org.access, threadId)) {
+        console.log(`${lp} Thread ${threadId} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
+        return;
+      }
+      if (!isSenderAllowed(org.access, threadId, sender)) {
+        console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
+        return;
+      }
+
+      const isRealMention = mentionRe.test(extractText(message)) || !!message.mention_all;
+      const perThreadMode = getThreadMode(threadId);
+
+      // In mention mode, skip messages that don't @mention the bot — before rate-limit
+      // so non-mention messages don't consume rate-limit tokens
+      if (perThreadMode === 'mention' && !isRealMention) {
+        return;
+      }
+
+      const rlKey = `${label}:thread:${message.sender_id || sender}`;
+      if (!getRateLimiter(rlKey).consume()) {
+        console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
+        return;
+      }
+
+      // Download media for trigger message (after policy checks)
+      const localPaths = await downloadMediaParts(message.parts, client, label, lp);
+      const attachments = formatAttachments(message.parts, localPaths);
+
+      if ((content.length + attachments.length) > MAX_CONTENT_LENGTH) {
+        console.warn(`${lp} Thread ${threadId} from ${sender} rejected — content too large (${content.length + attachments.length} bytes)`);
+        return;
+      }
+
+      // Build C4 message with XML tags (consistent with Lark/TG format)
+      const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
+
+      // Thread context: previous messages (excluding trigger) — no media download for context
+      const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
+      if (contextMsgs.length > 0) {
+        const lines = contextMsgs.map(m => {
+          const ctxAtt = formatAttachments(m.parts);
+          return `[${escapeXml(msgSender(m))}]: ${escapeXml(m.content || '')}${escapeXml(ctxAtt)}`;
+        });
+        parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
+      }
+
+      // Smart mode hint
+      if (!isRealMention && perThreadMode === 'smart') {
+        parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
+      }
+
+      // Reply-to context (like TG's replying-to format)
+      if (message.reply_to_message) {
+        const reply = message.reply_to_message;
+        const replySender = escapeXml(reply.sender_name || reply.sender_id || 'unknown');
+        const replyContent = escapeXml(reply.content || '');
+        const replyAtt = escapeXml(formatAttachments(reply.parts));
+        parts.push(`<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>\n\n`);
+      }
+
+      // Current message (includes non-text attachments with local paths when downloaded)
+      parts.push(`<current-message>\n${escapeXml(content)}${escapeXml(attachments)}\n</current-message>`);
+
+      // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
+      const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
+      console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
+      sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
+    } catch (err) {
+      console.error(`${lp} Thread handler error: ${err.message}`);
     }
-
-    // groupPolicy gates thread access (threads = group chat)
-    if (!isThreadAllowed(org.access, threadId)) {
-      console.log(`${lp} Thread ${threadId} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
-      return;
-    }
-    if (!isSenderAllowed(org.access, threadId, sender)) {
-      console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
-      return;
-    }
-
-    const isRealMention = mentionRe.test(extractText(message)) || !!message.mention_all;
-    const perThreadMode = getThreadMode(threadId);
-
-    // In mention mode, skip messages that don't @mention the bot — before rate-limit
-    // so non-mention messages don't consume rate-limit tokens
-    if (perThreadMode === 'mention' && !isRealMention) {
-      return;
-    }
-
-    const rlKey = `${label}:thread:${message.sender_id || sender}`;
-    if (!getRateLimiter(rlKey).consume()) {
-      console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
-      return;
-    }
-
-    // Build C4 message with XML tags (consistent with Lark/TG format)
-    const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
-
-    // Thread context: previous messages (excluding trigger)
-    const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
-    if (contextMsgs.length > 0) {
-      const lines = contextMsgs.map(m => {
-        const ctxAtt = formatAttachments(m.parts);
-        return `[${escapeXml(msgSender(m))}]: ${escapeXml(m.content || '')}${escapeXml(ctxAtt)}`;
-      });
-      parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
-    }
-
-    // Smart mode hint
-    if (!isRealMention && perThreadMode === 'smart') {
-      parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
-    }
-
-    // Reply-to context (like TG's replying-to format)
-    if (message.reply_to_message) {
-      const reply = message.reply_to_message;
-      const replySender = escapeXml(reply.sender_name || reply.sender_id || 'unknown');
-      const replyContent = escapeXml(reply.content || '');
-      const replyAtt = escapeXml(formatAttachments(reply.parts));
-      parts.push(`<replying-to>\n[${replySender}]: ${replyContent}${replyAtt}\n</replying-to>\n\n`);
-    }
-
-    // Current message (includes non-text attachments: image, file, link)
-    parts.push(`<current-message>\n${escapeXml(content)}${escapeXml(attachments)}\n</current-message>`);
-
-    // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
-    const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
-    console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
   });
 
   client.on('thread_message', (msg) => {

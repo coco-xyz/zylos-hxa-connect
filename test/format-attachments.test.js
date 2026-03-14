@@ -20,7 +20,7 @@ function formatBytes(bytes) {
 
 const MAX_ATTACHMENT_PARTS = 20;
 
-function formatAttachments(parts) {
+function formatAttachments(parts, localPaths) {
   if (!parts || !parts.length) return '';
   const refs = [];
   let truncated = 0;
@@ -33,16 +33,19 @@ function formatAttachments(parts) {
       continue;
     }
     switch (part.type) {
-      case 'image':
+      case 'image': {
         if (!part.url) break;
+        const loc = localPaths?.[part.url];
         refs.push(part.alt
-          ? `[image: ${part.alt} — ${part.url}]`
-          : `[image: ${part.url}]`);
+          ? `[image: ${part.alt} — ${loc || part.url}]`
+          : `[image: ${loc || part.url}]`);
         break;
+      }
       case 'file': {
         if (!part.url || !part.name) break;
         const size = part.size != null ? `, ${formatBytes(part.size)}` : '';
-        refs.push(`[file: ${part.name} (${part.mime_type || 'application/octet-stream'}${size}) — ${part.url}]`);
+        const loc = localPaths?.[part.url];
+        refs.push(`[file: ${part.name} (${part.mime_type || 'application/octet-stream'}${size}) — ${loc || part.url}]`);
         break;
       }
       case 'link':
@@ -61,6 +64,9 @@ function formatAttachments(parts) {
   if (truncated > 0) refs.push(`[... and ${truncated} more]`);
   return refs.length > 0 ? '\n' + refs.join('\n') : '';
 }
+
+// Hub file URL pattern
+const HUB_FILE_RE = /^\/api\/files\/([^/?#]+)/;
 
 function extractText(msg) {
   const texts = [msg.content || ''];
@@ -644,5 +650,117 @@ describe('@all / mention_all filtering', () => {
     const threadMode = 'smart';
     const shouldSkip = threadMode === 'mention' && !isRealMention(message);
     assert.ok(!shouldSkip);
+  });
+});
+
+// ─── Media download: HUB_FILE_RE ────────────────────────────────────────
+
+describe('HUB_FILE_RE (Hub-internal file URL pattern)', () => {
+  it('matches standard Hub file URL', () => {
+    const match = HUB_FILE_RE.exec('/api/files/550e8400-e29b-41d4-a716-446655440000');
+    assert.ok(match);
+    assert.equal(match[1], '550e8400-e29b-41d4-a716-446655440000');
+  });
+
+  it('matches short IDs (opaque)', () => {
+    const match = HUB_FILE_RE.exec('/api/files/abc123');
+    assert.ok(match);
+    assert.equal(match[1], 'abc123');
+  });
+
+  it('matches IDs with non-hex characters (opaque)', () => {
+    const match = HUB_FILE_RE.exec('/api/files/file_2026-XYZ.dat');
+    assert.ok(match);
+    assert.equal(match[1], 'file_2026-XYZ.dat');
+  });
+
+  it('rejects external URLs', () => {
+    assert.equal(HUB_FILE_RE.exec('https://cdn.example.com/photo.jpg'), null);
+  });
+
+  it('strips query string from captured ID', () => {
+    const match = HUB_FILE_RE.exec('/api/files/abc123?token=xyz&v=2');
+    assert.ok(match);
+    assert.equal(match[1], 'abc123');
+  });
+
+  it('strips fragment from captured ID', () => {
+    const match = HUB_FILE_RE.exec('/api/files/abc123#section');
+    assert.ok(match);
+    assert.equal(match[1], 'abc123');
+  });
+
+  it('rejects non-file API paths', () => {
+    assert.equal(HUB_FILE_RE.exec('/api/bots/abc123'), null);
+  });
+});
+
+// ─── Media download: formatAttachments with localPaths ──────────────────
+
+describe('formatAttachments with localPaths', () => {
+  it('replaces Hub URL with local path for images', () => {
+    const parts = [{ type: 'image', url: '/api/files/abc123', alt: 'photo' }];
+    const localPaths = { '/api/files/abc123': '/home/user/media/photo.jpg' };
+    const result = formatAttachments(parts, localPaths);
+    assert.ok(result.includes('/home/user/media/photo.jpg'));
+    assert.ok(!result.includes('/api/files/abc123'));
+    assert.ok(result.includes('photo'));
+  });
+
+  it('replaces Hub URL with local path for files', () => {
+    const parts = [{ type: 'file', url: '/api/files/def456', name: 'doc.pdf', mime_type: 'application/pdf', size: 10240 }];
+    const localPaths = { '/api/files/def456': '/home/user/media/doc.pdf' };
+    const result = formatAttachments(parts, localPaths);
+    assert.ok(result.includes('/home/user/media/doc.pdf'));
+    assert.ok(!result.includes('/api/files/def456'));
+    assert.ok(result.includes('doc.pdf'));
+    assert.ok(result.includes('10.0KB'));
+  });
+
+  it('keeps original URL when no local path available', () => {
+    const parts = [{ type: 'image', url: '/api/files/nope' }];
+    const localPaths = {};
+    const result = formatAttachments(parts, localPaths);
+    assert.ok(result.includes('/api/files/nope'));
+  });
+
+  it('keeps external URLs unchanged even with localPaths', () => {
+    const parts = [{ type: 'image', url: 'https://cdn.example.com/img.jpg', alt: 'ext' }];
+    const localPaths = {};
+    const result = formatAttachments(parts, localPaths);
+    assert.ok(result.includes('https://cdn.example.com/img.jpg'));
+  });
+
+  it('handles mixed parts: some downloaded, some not', () => {
+    const parts = [
+      { type: 'image', url: '/api/files/aaa', alt: 'downloaded' },
+      { type: 'image', url: 'https://external.com/img.png', alt: 'external' },
+      { type: 'file', url: '/api/files/bbb', name: 'report.pdf', mime_type: 'application/pdf' },
+    ];
+    const localPaths = { '/api/files/aaa': '/media/aaa.jpg' };
+    const result = formatAttachments(parts, localPaths);
+    assert.ok(result.includes('/media/aaa.jpg'), 'downloaded image should use local path');
+    assert.ok(result.includes('https://external.com/img.png'), 'external URL preserved');
+    assert.ok(result.includes('/api/files/bbb'), 'non-downloaded Hub file keeps URL');
+  });
+
+  it('backward compat: no localPaths parameter', () => {
+    const parts = [{ type: 'image', url: '/api/files/abc123' }];
+    const result = formatAttachments(parts);
+    assert.ok(result.includes('/api/files/abc123'));
+  });
+
+  it('backward compat: localPaths undefined', () => {
+    const parts = [{ type: 'image', url: '/api/files/abc123' }];
+    const result = formatAttachments(parts, undefined);
+    assert.ok(result.includes('/api/files/abc123'));
+  });
+
+  it('links are never replaced by localPaths', () => {
+    const parts = [{ type: 'link', url: 'https://example.com', title: 'Example' }];
+    const localPaths = { 'https://example.com': '/should/not/appear' };
+    const result = formatAttachments(parts, localPaths);
+    assert.ok(result.includes('https://example.com'));
+    assert.ok(!result.includes('/should/not/appear'));
   });
 });
