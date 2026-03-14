@@ -120,7 +120,7 @@ const MIME_TO_EXT = {
 
 // Match Hub-internal file URLs: /api/files/<id> (ID is opaque — no format constraints)
 // [^?#]+ excludes query strings and fragments from the captured ID.
-const HUB_FILE_RE = /^\/api\/files\/([^?#]+)/;
+const HUB_FILE_RE = /^\/api\/files\/([^/?#]+)/;
 
 /**
  * Download media parts (image/file) from Hub to local filesystem.
@@ -135,7 +135,7 @@ async function downloadMediaParts(parts, client, orgLabel, lp) {
   const orgDir = path.join(MEDIA_BASE_DIR, orgLabel);
 
   try {
-    fs.mkdirSync(orgDir, { recursive: true });
+    await fs.promises.mkdir(orgDir, { recursive: true });
   } catch (err) {
     console.warn(`${lp} Failed to create media dir ${orgDir}: ${err.message}`);
     return localPaths;
@@ -151,14 +151,17 @@ async function downloadMediaParts(parts, client, orgLabel, lp) {
     const fileId = match[1];
 
     try {
-      const result = await client.downloadFile(fileId);
+      const result = await client.downloadFile(fileId, {
+        maxBytes: 10 * 1024 * 1024, // 10 MB
+        timeout: 30_000,
+      });
       const ext = MIME_TO_EXT[result.contentType] || '';
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 16);
       const filename = `${timestamp}-${safeId}${ext}`;
 
       const localPath = path.join(orgDir, filename);
-      fs.writeFileSync(localPath, result.buffer);
+      await fs.promises.writeFile(localPath, result.buffer);
 
       localPaths[part.url] = localPath;
       console.log(`${lp} Media saved: ${localPath} (${formatBytes(result.size)})`);

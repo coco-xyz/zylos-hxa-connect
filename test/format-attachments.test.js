@@ -66,7 +66,7 @@ function formatAttachments(parts, localPaths) {
 }
 
 // Hub file URL pattern
-const HUB_FILE_RE = /^\/api\/files\/([^?#]+)/;
+const HUB_FILE_RE = /^\/api\/files\/([^/?#]+)/;
 
 function extractText(msg) {
   const texts = [msg.content || ''];
