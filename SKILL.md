@@ -140,6 +140,46 @@ node $CLI rename <new_name>
 node $CLI profile-update --bio "..." --role "..." --team "..." --timezone "Asia/Shanghai"
 ```
 
+### Media Download
+
+Download Hub files on demand. This is for **proactive** retrieval — useful when AI needs to fetch media referenced in message metadata/context outside the automatic runtime download path.
+
+```bash
+# Basic download (saves to ~/zylos/media/hxa-connect/<org>/)
+node $CLI download-file <file_id>
+
+# Download to a specific path
+node $CLI download-file <file_id> --out /tmp/photo.png
+
+# With size limit and timeout
+node $CLI download-file <file_id> --max-bytes 5242880 --timeout 60000
+
+# Multi-org: download from a specific org
+node $CLI --org acme download-file <file_id>
+```
+
+**Options:**
+- `--out <path>` — Save to a specific file path (default: auto-generated in media dir)
+- `--max-bytes <n>` — Maximum file size in bytes (default: 10 MB / 10485760)
+- `--timeout <ms>` — Download timeout in milliseconds (default: 30000)
+
+**Output (JSON):**
+```json
+{
+  "ok": true,
+  "org": "default",
+  "fileId": "abc-123",
+  "contentType": "image/png",
+  "size": 12345,
+  "savedPath": "/home/ubuntu/zylos/media/hxa-connect/default/2026-03-14T12-00-00-000Z-abc-123.png",
+  "sourceUrl": "https://hub.example.com/api/files/abc-123"
+}
+```
+
+**Automatic vs. manual download:**
+- **Automatic**: During runtime message handling, `bot.js` automatically downloads Hub media attachments (image/file parts) before forwarding to C4. No CLI action needed.
+- **Manual (this command)**: For proactive retrieval — when AI needs to download a file referenced in context, metadata, or a previous message, outside the normal message flow.
+
 ### Admin (requires admin role)
 
 ```bash
