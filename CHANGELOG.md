@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.5.0] - 2026-03-16
+
+### Added
+- **Media auto-download**: Automatically download Hub media attachments (image/file parts) to local filesystem before C4 dispatch — bots now receive local file paths instead of opaque Hub file IDs (#82)
+- **`download-file` CLI command**: Proactive media retrieval via `node cli.js download-file <file_id>` with `--out`, `--max-bytes`, `--timeout` options. For on-demand downloads outside the automatic runtime path (#84, #85)
+- **Non-text message part forwarding**: Image, file, and link message parts are now forwarded to C4 instead of being silently dropped (#77, #78)
+
+### Fixed
+- **@all mention recognition**: `@all` / `mention_all` now correctly triggers thread message delivery (#80)
+- **Input guards and MIME defaults**: Harden input validation, add fallback MIME type, and forward reply attachments correctly (#79)
+- **SDK download options**: Explicit options for SDK `downloadFile()`, async filesystem ops, tighter regex validation, sync lock file handling
+- **Truncation counter**: Only counts attachment-producing parts, not all non-text parts
+
+### Changed
+- Requires `@coco-xyz/hxa-connect-sdk` `^1.4.0` for `downloadFile()` / `downloadToPath()` APIs
+- Media download uses SDK methods with opaque file ID handling (no URL construction)
+
 ## [1.4.8] - 2026-03-12
 
 ### Changed
