@@ -14,6 +14,7 @@ import path from 'path';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { migrateConfig, resolveOrgs, setupFetchProxy, PROXY_URL } from './env.js';
 import { isDmAllowed, isThreadAllowed, isSenderAllowed } from './lib/auth.js';
+import { MEDIA_BASE_DIR, generateFilename } from './lib/media.js';
 
 const HOME = process.env.HOME;
 const C4_RECEIVE = path.join(HOME, 'zylos/.claude/skills/comm-bridge/scripts/c4-receive.js');
@@ -105,19 +106,6 @@ function formatAttachments(parts, localPaths) {
 
 // ─── Media Download ─────────────────────────────────────────
 
-const MEDIA_BASE_DIR = path.join(HOME, 'zylos/media/hxa-connect');
-
-const MIME_TO_EXT = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-  'application/pdf': '.pdf',
-  'text/plain': '.txt',
-  'text/csv': '.csv',
-  'application/json': '.json',
-};
-
 // Match Hub-internal file URLs: /api/files/<id> (ID is opaque — no format constraints)
 // [^?#]+ excludes query strings and fragments from the captured ID.
 const HUB_FILE_RE = /^\/api\/files\/([^/?#]+)/;
@@ -155,10 +143,7 @@ async function downloadMediaParts(parts, client, orgLabel, lp) {
         maxBytes: 10 * 1024 * 1024, // 10 MB
         timeout: 30_000,
       });
-      const ext = MIME_TO_EXT[result.contentType] || '';
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const safeId = fileId.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 16);
-      const filename = `${timestamp}-${safeId}${ext}`;
+      const filename = generateFilename(fileId, result.contentType);
 
       const localPath = path.join(orgDir, filename);
       await fs.promises.writeFile(localPath, result.buffer);

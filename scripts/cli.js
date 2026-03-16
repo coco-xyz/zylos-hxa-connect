@@ -9,8 +9,11 @@
  * Message sending is NOT here — it goes through C4 (c4-send.js → send.js).
  */
 
+import fs from 'fs';
+import path from 'path';
 import { HxaConnectClient } from '@coco-xyz/hxa-connect-sdk';
 import { migrateConfig, resolveOrgs, setupFetchProxy } from '../src/env.js';
+import { MEDIA_BASE_DIR, generateFilename } from '../src/lib/media.js';
 
 const args = process.argv.slice(2);
 
@@ -335,6 +338,73 @@ try {
       break;
     }
 
+    // ─── Media ────────────────────────────────────────────────
+
+    case 'download-file': {
+      const fileId = args[commandIdx + 1];
+      if (!fileId || fileId.startsWith('--')) fail('Usage: cli.js download-file <file_id> [--out <path>] [--max-bytes <n>] [--timeout <ms>]');
+      const outPath = getFlag('out');
+      const outIdx = args.indexOf('--out');
+      if (outIdx !== -1 && !outPath) {
+        fail('--out requires a file path value');
+      }
+      if (outPath?.startsWith('--')) {
+        fail('--out requires a file path value');
+      }
+      const maxBytesStr = getFlag('max-bytes');
+      const timeoutStr = getFlag('timeout');
+
+      const maxBytes = maxBytesStr ? Number(maxBytesStr) : 10 * 1024 * 1024;
+      const timeout = timeoutStr ? Number(timeoutStr) : 30_000;
+
+      if (maxBytesStr && (!Number.isFinite(maxBytes) || maxBytes <= 0)) {
+        fail('--max-bytes must be a positive number');
+      }
+      const MAX_BYTES_LIMIT = 100 * 1024 * 1024; // 100 MB
+      if (maxBytes > MAX_BYTES_LIMIT) {
+        fail(`--max-bytes cannot exceed ${MAX_BYTES_LIMIT} (100 MB)`);
+      }
+      if (timeoutStr && (!Number.isFinite(timeout) || timeout <= 0)) {
+        fail('--timeout must be a positive number (milliseconds)');
+      }
+
+      const result = await client.downloadFile(fileId, { maxBytes, timeout });
+
+      if (result.size === 0) {
+        process.stderr.write('Warning: downloaded file is empty (0 bytes)\n');
+      }
+
+      // Determine save path
+      let savedPath;
+      if (outPath) {
+        savedPath = path.resolve(outPath);
+        await fs.promises.mkdir(path.dirname(savedPath), { recursive: true });
+      } else {
+        const orgDir = path.join(MEDIA_BASE_DIR, orgLabel);
+        await fs.promises.mkdir(orgDir, { recursive: true });
+        savedPath = path.join(orgDir, generateFilename(fileId, result.contentType));
+      }
+
+      try {
+        await fs.promises.writeFile(savedPath, result.buffer);
+      } catch (writeErr) {
+        await fs.promises.unlink(savedPath).catch(() => {});
+        throw writeErr;
+      }
+
+      const baseUrl = org.hubUrl.replace(/\/+$/, '');
+      out({
+        ok: true,
+        org: orgLabel,
+        fileId,
+        contentType: result.contentType,
+        size: result.size,
+        savedPath,
+        sourceUrl: `${baseUrl}/api/files/${encodeURIComponent(fileId)}`,
+      });
+      break;
+    }
+
     // ─── Help ───────────────────────────────────────────────
 
     case 'help':
@@ -371,6 +441,9 @@ try {
           profile_ops: {
             'profile-update': '[--bio "..."] [--role "..."] [--team "..."] [--status-text "..."] [--timezone "..."]',
             'rename': '<new_name>  Rename this bot',
+          },
+          media: {
+            'download-file': '<file_id> [--out <path>] [--max-bytes <n>] [--timeout <ms>]',
           },
           admin: {
             role: '<bot_id> admin|member',
