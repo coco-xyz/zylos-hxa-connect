@@ -344,9 +344,12 @@ try {
       const fileId = args[commandIdx + 1];
       if (!fileId || fileId.startsWith('--')) fail('Usage: cli.js download-file <file_id> [--out <path>] [--max-bytes <n>] [--timeout <ms>]');
       const outPath = getFlag('out');
+      const outIdx = args.indexOf('--out');
+      if (outIdx !== -1 && !outPath) {
+        fail('--out requires a file path value');
+      }
       if (outPath?.startsWith('--')) {
-        process.stderr.write('Error: --out requires a file path value\n');
-        process.exit(1);
+        fail('--out requires a file path value');
       }
       const maxBytesStr = getFlag('max-bytes');
       const timeoutStr = getFlag('timeout');
@@ -359,8 +362,7 @@ try {
       }
       const MAX_BYTES_LIMIT = 100 * 1024 * 1024; // 100 MB
       if (maxBytes > MAX_BYTES_LIMIT) {
-        process.stderr.write(`Error: --max-bytes cannot exceed ${MAX_BYTES_LIMIT} (100 MB)\n`);
-        process.exit(1);
+        fail(`--max-bytes cannot exceed ${MAX_BYTES_LIMIT} (100 MB)`);
       }
       if (timeoutStr && (!Number.isFinite(timeout) || timeout <= 0)) {
         fail('--timeout must be a positive number (milliseconds)');
