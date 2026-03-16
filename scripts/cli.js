@@ -344,6 +344,10 @@ try {
       const fileId = args[commandIdx + 1];
       if (!fileId || fileId.startsWith('--')) fail('Usage: cli.js download-file <file_id> [--out <path>] [--max-bytes <n>] [--timeout <ms>]');
       const outPath = getFlag('out');
+      if (outPath?.startsWith('--')) {
+        process.stderr.write('Error: --out requires a file path value\n');
+        process.exit(1);
+      }
       const maxBytesStr = getFlag('max-bytes');
       const timeoutStr = getFlag('timeout');
 
@@ -353,11 +357,20 @@ try {
       if (maxBytesStr && (!Number.isFinite(maxBytes) || maxBytes <= 0)) {
         fail('--max-bytes must be a positive number');
       }
+      const MAX_BYTES_LIMIT = 100 * 1024 * 1024; // 100 MB
+      if (maxBytes > MAX_BYTES_LIMIT) {
+        process.stderr.write(`Error: --max-bytes cannot exceed ${MAX_BYTES_LIMIT} (100 MB)\n`);
+        process.exit(1);
+      }
       if (timeoutStr && (!Number.isFinite(timeout) || timeout <= 0)) {
         fail('--timeout must be a positive number (milliseconds)');
       }
 
       const result = await client.downloadFile(fileId, { maxBytes, timeout });
+
+      if (result.size === 0) {
+        process.stderr.write('Warning: downloaded file is empty (0 bytes)\n');
+      }
 
       // Determine save path
       let savedPath;
@@ -370,7 +383,12 @@ try {
         savedPath = path.join(orgDir, generateFilename(fileId, result.contentType));
       }
 
-      await fs.promises.writeFile(savedPath, result.buffer);
+      try {
+        await fs.promises.writeFile(savedPath, result.buffer);
+      } catch (writeErr) {
+        await fs.promises.unlink(savedPath).catch(() => {});
+        throw writeErr;
+      }
 
       const baseUrl = org.hubUrl.replace(/\/+$/, '');
       out({

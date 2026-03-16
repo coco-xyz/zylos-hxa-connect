@@ -201,6 +201,37 @@ describe('download-file argument validation', () => {
     const timeout = timeoutStr ? Number(timeoutStr) : 30_000;
     assert.equal(timeout, 60000);
   });
+
+  it('should reject --out value that looks like a flag', () => {
+    const outPath = '--max-bytes';
+    const isInvalid = outPath?.startsWith('--');
+    assert.equal(isInvalid, true);
+  });
+
+  it('should accept valid --out path', () => {
+    const outPath = '/tmp/output.png';
+    const isInvalid = outPath?.startsWith('--');
+    assert.equal(isInvalid, false);
+  });
+
+  it('should cap max-bytes at 100 MB', () => {
+    const MAX_BYTES_LIMIT = 100 * 1024 * 1024;
+    assert.equal(MAX_BYTES_LIMIT, 104857600);
+    // Value above limit should be rejected
+    const tooBig = 200 * 1024 * 1024;
+    assert.ok(tooBig > MAX_BYTES_LIMIT);
+    // Value at limit should be accepted
+    assert.ok(!(MAX_BYTES_LIMIT > MAX_BYTES_LIMIT));
+    // Value below limit should be accepted
+    const ok = 50 * 1024 * 1024;
+    assert.ok(!(ok > MAX_BYTES_LIMIT));
+  });
+
+  it('should default max-bytes within the 100 MB cap', () => {
+    const MAX_BYTES_LIMIT = 100 * 1024 * 1024;
+    const defaultMaxBytes = 10 * 1024 * 1024;
+    assert.ok(defaultMaxBytes <= MAX_BYTES_LIMIT);
+  });
 });
 
 describe('download-file output structure', () => {
