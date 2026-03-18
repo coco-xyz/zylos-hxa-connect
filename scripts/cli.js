@@ -95,11 +95,15 @@ try {
       const query = args[commandIdx + 1];
       if (!query || query.startsWith('--')) fail('Usage: cli.js search-threads "<query>" [--status X] [--limit N] [--cursor X]');
       const status = getFlag('status');
-      const limit = getFlag('limit');
+      const limitStr = getFlag('limit');
       const cursor = getFlag('cursor');
       const opts = {};
       if (status) opts.status = status;
-      if (limit) opts.limit = Number(limit);
+      if (limitStr != null) {
+        const n = Number(limitStr);
+        if (!Number.isInteger(n) || n < 1 || n > 50) fail('--limit must be an integer between 1 and 50');
+        opts.limit = n;
+      }
       if (cursor) opts.cursor = cursor;
       const results = await client.searchThreads(query, opts);
       out(results);
