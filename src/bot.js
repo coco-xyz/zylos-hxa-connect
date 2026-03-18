@@ -259,6 +259,7 @@ const HANDLED_EVENTS = new Set([
   'message', 'channel_message', 'thread_created', 'thread_message',
   'thread_updated', 'thread_artifact', 'thread_participant',
   'channel_deleted', 'channel_created', 'bot_online', 'bot_offline', 'bot_renamed', 'thread_status_changed',
+  'bot_join_request', 'bot_status_changed', 'bot_registered',
   'reconnecting', 'reconnected', 'reconnect_failed', 'error', 'close', 'pong',
   'ack', 'session_invalidated',
 ]);
@@ -539,6 +540,21 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
   client.on('bot_offline', (msg) => {
     console.log(`${lp} ${msg.bot?.name || msg.bot?.id || 'unknown'} is offline`);
+  });
+
+  client.on('bot_join_request', (msg) => {
+    const botName = msg.bot?.name || msg.bot?.id || 'unknown';
+    console.log(`${lp} Bot join request: ${botName} (awaiting approval)`);
+    const formatted = `[${dp}] Bot "${botName}" is requesting to join the org (pending admin approval)`;
+    sendToC4(C4_CHANNEL, c4Endpoint(label, 'admin'), formatted);
+  });
+
+  client.on('bot_status_changed', (msg) => {
+    const status = msg.join_status || 'unknown';
+    const botName = msg.name || msg.bot_id || 'unknown';
+    console.log(`${lp} Bot status changed: ${botName} → ${status}`);
+    const formatted = `[${dp}] Bot "${botName}" status changed to ${status}${msg.reason ? ` (reason: ${msg.reason})` : ''}`;
+    sendToC4(C4_CHANNEL, c4Endpoint(label, 'admin'), formatted);
   });
 
   // ─── Connection Lifecycle ──────────────────────────────
