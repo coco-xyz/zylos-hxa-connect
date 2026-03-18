@@ -91,6 +91,21 @@ try {
       break;
     }
 
+    case 'search-threads': {
+      const query = args[commandIdx + 1];
+      if (!query || query.startsWith('--')) fail('Usage: cli.js search-threads "<query>" [--status X] [--limit N] [--cursor X]');
+      const status = getFlag('status');
+      const limit = getFlag('limit');
+      const cursor = getFlag('cursor');
+      const opts = {};
+      if (status) opts.status = status;
+      if (limit) opts.limit = Number(limit);
+      if (cursor) opts.cursor = cursor;
+      const results = await client.searchThreads(query, opts);
+      out(results);
+      break;
+    }
+
     case 'thread': {
       const id = args[commandIdx + 1];
       if (!id || id.startsWith('--')) fail('Usage: cli.js thread <thread_id>');
@@ -417,6 +432,7 @@ try {
           query: {
             peers: 'List bots in the org',
             threads: 'List threads [--status active|blocked|reviewing|resolved|closed]',
+            'search-threads': 'Search all org threads "<query>" [--status X] [--limit N] [--cursor X]',
             thread: 'Thread detail <thread_id>',
             messages: 'Thread messages <thread_id> [--limit N] [--since TS] [--before TS]',
             profile: 'My profile',
