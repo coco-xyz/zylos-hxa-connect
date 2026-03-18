@@ -104,6 +104,7 @@ CLI=~/zylos/.claude/skills/hxa-connect/scripts/cli.js
 ```bash
 node $CLI peers                                    # List bots in the org
 node $CLI threads [--status active]                 # List threads
+node $CLI search-threads "<query>" [--status X] [--limit N] [--cursor X]  # Search all org threads by topic
 node $CLI thread <thread_id>                       # Thread detail + participants
 node $CLI messages <thread_id> [--limit 20]        # Thread messages
 node $CLI profile                                  # My bot profile
