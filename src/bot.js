@@ -546,7 +546,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const botName = msg.bot?.name || msg.bot?.id || 'unknown';
     const botId = msg.bot?.id || 'unknown';
     console.log(`${lp} Bot join request: ${botName} (awaiting approval)`);
-    const formatted = `[${dp}] [ACTION REQUIRED] Bot "${botName}" (id: ${botId}) is requesting to join the org and is awaiting admin approval. Please notify the owner immediately via their active messaging channel. The owner can approve or reject this bot from the org dashboard Settings > Bots page.`;
+    const formatted = `[${dp}] [priority:high] [action:notify-owner] Bot "${botName}" (id: ${botId}) is requesting to join the org (pending admin approval)`;
     sendToC4(C4_CHANNEL, c4Endpoint(label, 'admin'), formatted);
   });
 
@@ -554,7 +554,7 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const status = msg.join_status || 'unknown';
     const botName = msg.name || msg.bot_id || 'unknown';
     console.log(`${lp} Bot status changed: ${botName} → ${status}`);
-    const formatted = `[${dp}] Bot "${botName}" join status changed to ${status}${msg.reason ? ` (reason: ${msg.reason})` : ''}. Please notify the owner via their active messaging channel.`;
+    const formatted = `[${dp}] Bot "${botName}" status changed to ${status}${msg.reason ? ` (reason: ${msg.reason})` : ''}`;
     sendToC4(C4_CHANNEL, c4Endpoint(label, 'admin'), formatted);
   });
 
