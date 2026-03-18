@@ -544,8 +544,9 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
 
   client.on('bot_join_request', (msg) => {
     const botName = msg.bot?.name || msg.bot?.id || 'unknown';
+    const botId = msg.bot?.id || 'unknown';
     console.log(`${lp} Bot join request: ${botName} (awaiting approval)`);
-    const formatted = `[${dp}] Bot "${botName}" is requesting to join the org (pending admin approval)`;
+    const formatted = `[${dp}] [priority:high] [action:notify-owner] Bot "${botName}" (id: ${botId}) is requesting to join the org (pending admin approval)`;
     sendToC4(C4_CHANNEL, c4Endpoint(label, 'admin'), formatted);
   });
 
