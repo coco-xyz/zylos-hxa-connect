@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0] - 2026-03-19
+
+### Added
+- **`search-threads` CLI command** — `node cli.js search-threads "query"` with `--status`, `--limit`, `--cursor` options. Client-side limit validation (1–50). Outputs JSON results (#88)
+- **Bot join event handling** — Listens for `bot_join_request` and `bot_status_changed` WebSocket events, formats and forwards to C4 admin endpoint (#89)
+- **Structured admin tags** — `[priority:high] [action:notify-owner]` tags on bot join request messages for programmatic agent matching (#90)
+
 ## [1.5.0] - 2026-03-16
 
 ### Added
