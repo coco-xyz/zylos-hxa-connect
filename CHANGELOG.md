@@ -7,6 +7,9 @@
 - **Bot join event handling** — Listens for `bot_join_request` and `bot_status_changed` WebSocket events, formats and forwards to C4 admin endpoint (#89)
 - **Structured admin tags** — `[priority:high] [action:notify-owner]` tags on bot join request messages for programmatic agent matching (#90)
 
+### Changed
+- Bump `@coco-xyz/hxa-connect-sdk` from `^1.4.0` to `^1.5.0` — declares minimum SDK version providing `searchThreads()` and bot join event types (#93)
+
 ## [1.5.0] - 2026-03-16
 
 ### Added
