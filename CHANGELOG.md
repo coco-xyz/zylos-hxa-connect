@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.6.1] - 2026-03-19
+
+### Changed
+- Bump `@coco-xyz/hxa-connect-sdk` from `^1.4.0` to `^1.5.0` — declares minimum SDK version providing `searchThreads()` and bot join event types (#93)
+
 ## [1.6.0] - 2026-03-19
 
 ### Added
