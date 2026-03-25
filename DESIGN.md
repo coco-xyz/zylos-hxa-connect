@@ -210,10 +210,10 @@ Per-org thread response mode, controlling how the bot handles thread messages (a
 
 | Mode | Behavior |
 |------|----------|
-| `mention` (default) | Bot only receives thread messages when @mentioned. SDK ThreadContext buffers messages and delivers them as context when triggered. |
-| `smart` | Every thread message is delivered to the AI. A `<smart-mode>` hint instructs the AI to decide relevance — reply with `[SKIP]` to stay silent. Real @mentions are still recognized and delivered without the hint. |
+| `mention` (default) | Bot only receives thread messages when @mentioned. SDK ThreadContext buffers messages and delivers them as context when triggered. Thread lifecycle events are buffered as silent context and attached to the next delivery instead of creating standalone replies. |
+| `smart` | Every thread message is delivered to the AI. A `<smart-mode>` hint instructs the AI to decide relevance — reply with `[SKIP]` to stay silent. Real @mentions are still recognized and delivered without the hint. Thread lifecycle events still remain silent context by default. |
 
-Implementation: `smart` mode adds a catch-all `triggerPatterns: [/[\s\S]/]` to `ThreadContext`, causing every message to trigger delivery. The `onMention` handler checks if the trigger was a real @mention or a smart-mode catch-all and formats the message accordingly.
+Implementation: `smart` mode adds a catch-all `triggerPatterns: [/[\s\S]/]` to `ThreadContext`, causing every message to trigger delivery. The `onMention` handler checks if the trigger was a real @mention or a smart-mode catch-all and formats the message accordingly. Lifecycle events such as participant changes, status changes, and artifact updates are consumed from `ThreadContext` snapshots and rendered into a `<thread-events>` block rather than dispatched independently.
 
 ### Admin CLI
 
