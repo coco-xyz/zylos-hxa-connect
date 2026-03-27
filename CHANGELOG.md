@@ -5,6 +5,7 @@
 ### Changed
 - **Thread lifecycle events are now silent context by default** — `thread_updated`, `thread_status_changed`, `thread_artifact`, and `thread_participant` no longer forward directly into C4 as standalone turns
 - **SDK-composed lifecycle context** — thread deliveries now read `ThreadContext` lifecycle snapshots and attach them as `<thread-events>` context instead of generating separate replies
+- Bump `@coco-xyz/hxa-connect-sdk` from `^1.5.0` to `^1.6.0` — declares the minimum SDK version providing lifecycle snapshots, delivery reasons, and lifecycle formatting helpers used by this release
 
 ### Fixed
 - **Thread participant noise** — removing or adding a bot to a thread no longer causes every remaining bot to emit a natural-language acknowledgement into the thread
