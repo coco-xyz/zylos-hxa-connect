@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.7.1] - 2026-03-27
+
+### Fixed
+- **Undici security update** — bump direct dependency `undici` from `^7.22.0` to `^7.24.6` to pull in fixes for the six advisories affecting `>=7.0.0 <7.24.0`
+
 ## [1.7.0] - 2026-03-25
 
 ### Changed
