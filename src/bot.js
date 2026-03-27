@@ -7,7 +7,7 @@
  * Uses hxa-connect-sdk for WS (session-based auth, auto-reconnect, 1012 support).
  */
 
-import { HxaConnectClient, ThreadContext } from '@coco-xyz/hxa-connect-sdk';
+import * as hxaSdk from '@coco-xyz/hxa-connect-sdk';
 import { execFile } from 'child_process';
 import fs from 'fs';
 import path from 'path';
@@ -25,6 +25,34 @@ const orgLabels = Object.keys(resolved.orgs);
 const isMultiOrg = orgLabels.length > 1 || !resolved.orgs.default;
 
 const C4_CHANNEL = 'hxa-connect';
+const { HxaConnectClient, ThreadContext } = hxaSdk;
+
+function fallbackFormatThreadLifecycleEvent(event) {
+  switch (event.type) {
+    case 'thread_created': {
+      const topic = event.thread?.topic || 'untitled';
+      const tags = event.thread?.tags?.length ? ` (tags: ${event.thread.tags.join(', ')})` : '';
+      return `Thread created: "${topic}"${tags}`;
+    }
+    case 'thread_updated': {
+      const topic = event.thread?.topic || 'untitled';
+      const changes = Array.isArray(event.changes) && event.changes.length ? event.changes.join(', ') : 'unknown fields';
+      return `Thread updated: "${topic}" (${changes})`;
+    }
+    case 'thread_status_changed':
+      return `Thread status changed: "${event.topic}" ${event.from} -> ${event.to}${event.by ? ` by ${event.by}` : ''}`;
+    case 'thread_artifact': {
+      const artifact = event.artifact || {};
+      return `Artifact ${event.action}: "${artifact.title || artifact.artifact_key}" (type: ${artifact.type})`;
+    }
+    case 'thread_participant':
+      return `${event.bot_name || event.bot_id}${event.label ? ` [${event.label}]` : ''} ${event.action} the thread${event.by ? ` by ${event.by}` : ''}`;
+    default:
+      return event.type || 'thread event';
+  }
+}
+
+const formatThreadLifecycleEvent = hxaSdk.formatThreadLifecycleEvent || fallbackFormatThreadLifecycleEvent;
 
 function c4Endpoint(label, endpoint) {
   if (!isMultiOrg && label === 'default') return endpoint;
@@ -43,6 +71,13 @@ function logPrefix(label) {
 
 function escapeXml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function buildLifecycleBlock(snapshot) {
+  const lifecycleEvents = snapshot.lifecycleEvents || [];
+  if (!lifecycleEvents.length) return '';
+  const lines = lifecycleEvents.map(event => `- ${escapeXml(formatThreadLifecycleEvent(event))}`);
+  return `<thread-events>\n${lines.join('\n')}\n</thread-events>\n\n`;
 }
 
 function formatBytes(bytes) {
@@ -352,9 +387,6 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const topic = thread.topic || 'untitled';
     const tags = thread.tags?.length ? thread.tags.join(', ') : 'none';
     console.log(`${lp} Thread created: "${topic}" (tags: ${tags})`);
-
-    const formatted = `[${dp} Thread] New thread created: "${topic}" (tags: ${tags}, id: ${thread.id})`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${thread.id}`), formatted);
   });
 
   // ─── Thread @mention filtering (SDK ThreadContext) ───
@@ -404,17 +436,18 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     return botName;
   }
 
-  threadCtx.onMention(async ({ threadId, message, snapshot }) => {
+  threadCtx.onMention(async ({ threadId, message, snapshot, reason }) => {
     try {
       const sender = msgSender(message);
       const content = message.content || '';
+      const isInteractiveDelivery = reason === 'message';
 
-      // groupPolicy gates thread access (threads = group chat)
-      if (!isThreadAllowed(org.access, threadId)) {
+      // groupPolicy / sender policy apply to interactive thread messages only.
+      if (isInteractiveDelivery && !isThreadAllowed(org.access, threadId)) {
         console.log(`${lp} Thread ${threadId} rejected (groupPolicy: ${org.access?.groupPolicy || 'open'})`);
         return;
       }
-      if (!isSenderAllowed(org.access, threadId, sender)) {
+      if (isInteractiveDelivery && !isSenderAllowed(org.access, threadId, sender)) {
         console.log(`${lp} Sender ${sender} rejected in thread ${threadId}`);
         return;
       }
@@ -422,16 +455,17 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       const isRealMention = mentionRe.test(extractText(message)) || !!message.mention_all;
       const perThreadMode = getThreadMode(threadId);
 
-      // In mention mode, skip messages that don't @mention the bot — before rate-limit
-      // so non-mention messages don't consume rate-limit tokens
-      if (perThreadMode === 'mention' && !isRealMention) {
+      // Mention-mode gating only applies to interactive thread messages.
+      if (isInteractiveDelivery && perThreadMode === 'mention' && !isRealMention) {
         return;
       }
 
-      const rlKey = `${label}:thread:${message.sender_id || sender}`;
-      if (!getRateLimiter(rlKey).consume()) {
-        console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
-        return;
+      if (isInteractiveDelivery) {
+        const rlKey = `${label}:thread:${message.sender_id || sender}`;
+        if (!getRateLimiter(rlKey).consume()) {
+          console.warn(`${lp} Thread ${threadId} from ${sender} rate-limited, dropping`);
+          return;
+        }
       }
 
       // Download media for trigger message (after policy checks)
@@ -443,8 +477,15 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
         return;
       }
 
+      const lifecycleBlock = buildLifecycleBlock(snapshot);
+      const hasCurrentMessage = !!message.id;
+
       // Build C4 message with XML tags (consistent with Lark/TG format)
-      const parts = [`[${dp} Thread:${threadId}] ${sender} said: `];
+      const parts = [
+        hasCurrentMessage
+          ? `[${dp} Thread:${threadId}] ${sender} said: `
+          : `[${dp} Thread:${threadId}] System update: `,
+      ];
 
       // Thread context: previous messages (excluding trigger) — no media download for context
       const contextMsgs = snapshot.newMessages.filter(m => m.id !== message.id);
@@ -456,8 +497,10 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
         parts.push(`<thread-context>\n${lines.join('\n')}\n</thread-context>\n\n`);
       }
 
+      if (lifecycleBlock) parts.push(lifecycleBlock);
+
       // Smart mode hint
-      if (!isRealMention && perThreadMode === 'smart') {
+      if (isInteractiveDelivery && !isRealMention && perThreadMode === 'smart') {
         parts.push('<smart-mode>\nDecide whether to respond. Reply with exactly [SKIP] when a response is unnecessary.\n</smart-mode>\n\n');
       }
 
@@ -471,11 +514,17 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
       }
 
       // Current message (includes non-text attachments with local paths when downloaded)
-      parts.push(`<current-message>\n${escapeXml(content)}${escapeXml(attachments)}\n</current-message>`);
+      if (hasCurrentMessage) {
+        parts.push(`<current-message>\n${escapeXml(content)}${escapeXml(attachments)}\n</current-message>`);
+      }
 
       // Include trigger message ID in endpoint for reply-to on send (like TG's msg: pattern)
-      const msgIdSuffix = message.id ? `|msg:${message.id}` : '';
-      console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
+      const msgIdSuffix = hasCurrentMessage ? `|msg:${message.id}` : '';
+      if (hasCurrentMessage) {
+        console.log(`${lp} Thread ${threadId} from ${sender} (${snapshot.bufferedCount} buffered)`);
+      } else {
+        console.log(`${lp} Thread ${threadId} lifecycle delivery (${reason})`);
+      }
       sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}${msgIdSuffix}`), parts.join(''));
     } catch (err) {
       console.error(`${lp} Thread handler error: ${err.message}`);
@@ -495,9 +544,6 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const changes = msg.changes || [];
     const topic = thread.topic || 'untitled';
     console.log(`${lp} Thread updated: "${topic}" changes: ${changes.join(', ')}`);
-
-    const formatted = `[${dp} Thread:${thread.id}] Thread "${topic}" updated: ${changes.join(', ')} (status: ${thread.status})`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${thread.id}`), formatted);
   });
 
   client.on('thread_artifact', (msg) => {
@@ -505,9 +551,6 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const artifact = msg.artifact || {};
     const action = msg.action || 'added';
     console.log(`${lp} Thread ${threadId} artifact ${action}: ${artifact.artifact_key}`);
-
-    const formatted = `[${dp} Thread:${threadId}] Artifact ${action}: "${artifact.title || artifact.artifact_key}" (type: ${artifact.type})`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), formatted);
   });
 
   client.on('thread_participant', (msg) => {
@@ -517,9 +560,6 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const by = msg.by ? ` (by ${msg.by})` : '';
     const labelTag = msg.label ? ` [${msg.label}]` : '';
     console.log(`${lp} Thread ${threadId}: ${botName} ${action}${by}`);
-
-    const formatted = `[${dp} Thread:${threadId}] ${botName}${labelTag} ${action} the thread${by}`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), formatted);
   });
 
   client.on('thread_status_changed', (msg) => {
@@ -529,9 +569,6 @@ for (const [label, org] of Object.entries(resolved.orgs)) {
     const to = msg.to || 'unknown';
     const by = msg.by ? ` (by ${msg.by})` : '';
     console.log(`${lp} Thread status changed: "${topic}" ${from} -> ${to}${by}`);
-
-    const formatted = `[${dp} Thread:${threadId}] Thread "${topic}" status changed: ${from} -> ${to}${by}`;
-    sendToC4(C4_CHANNEL, c4Endpoint(label, `thread:${threadId}`), formatted);
   });
 
   client.on('bot_online', (msg) => {

@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0] - 2026-03-25
+
+### Changed
+- **Thread lifecycle events are now silent context by default** — `thread_updated`, `thread_status_changed`, `thread_artifact`, and `thread_participant` no longer forward directly into C4 as standalone turns
+- **SDK-composed lifecycle context** — thread deliveries now read `ThreadContext` lifecycle snapshots and attach them as `<thread-events>` context instead of generating separate replies
+
+### Fixed
+- **Thread participant noise** — removing or adding a bot to a thread no longer causes every remaining bot to emit a natural-language acknowledgement into the thread
+- **Invite compatibility** — `thread_created` still triggers prompt delivery through SDK `ThreadContext` invite semantics instead of requiring a separate direct lifecycle bridge
+
 ## [1.6.0] - 2026-03-19
 
 ### Added
