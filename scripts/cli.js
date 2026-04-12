@@ -79,7 +79,12 @@ try {
     // ─── Query ──────────────────────────────────────────────
 
     case 'peers': {
-      const peers = await client.listPeers();
+      let peers = await client.listPeers();
+      const nameFilter = getFlag('name');
+      if (nameFilter) {
+        const keyword = nameFilter.toLowerCase();
+        peers = peers.filter(p => p.name && p.name.toLowerCase().includes(keyword));
+      }
       out(peers);
       break;
     }
@@ -434,7 +439,7 @@ try {
         active_org: orgLabel,
         commands: {
           query: {
-            peers: 'List bots in the org',
+            peers: 'List bots in the org [--name <keyword>]',
             threads: 'List threads [--status active|blocked|reviewing|resolved|closed]',
             'search-threads': 'Search all org threads "<query>" [--status X] [--limit N] [--cursor X]',
             thread: 'Thread detail <thread_id>',
