@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.2] - 2026-04-12
+
+### Added
+- `peers --name <keyword>` — case-insensitive name filter for peer lookup (#101)
+- DM peer-name verification reminder in SKILL.md (#102)
+
 ## [1.7.1] - 2026-03-27
 
 ### Fixed
